@@ -1,0 +1,625 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Type Library</title>
+<style>
+:root{--bg:#ebebeb;--fg:#1e1e1e;--chip:#f7f7f7;--dim:#bbbabb;--panel:#fff;--mute:#747474;--ease:cubic-bezier(.39,.2,.37,1)}
+body.dark{--bg:#2c2c2c;--fg:#fff;--chip:#232323;--dim:#464646;--panel:#1e1e1e;--mute:#9a9a9a}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--fg);font:16px/1.4 system-ui,sans-serif;overflow-x:hidden;transition:background .3s}
+button,input{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+ul{list-style:none}
+
+.brand{position:fixed;top:14px;left:16px;font-size:13px;font-weight:700;z-index:3}
+
+/* Stage: pill / headline / pill */
+.stage{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;padding:64px 0 28px}
+.line{position:relative;width:100%;height:30vh;transition:color .3s var(--ease)}
+.headline{display:block;height:30vh;line-height:30vh;white-space:nowrap;overflow:hidden;text-align:center;outline:0;padding:0 4vw;font-family:system-ui,sans-serif;font-weight:700}
+/* A picked style is drawn as-is (no faked bold/italic). No letter-spacing: Chrome turns ligatures off when it's set. */
+.headline,.blk>:first-child{font-synthesis:none;font-variant-ligatures:no-common-ligatures}
+.liga :is(.headline,.blk>:first-child){font-variant-ligatures:common-ligatures discretionary-ligatures}
+.empty .headline{caret-color:transparent}
+.empty .line::after{content:"";position:absolute;top:0;left:50%;width:5px;margin-left:-2px;height:100%;background:var(--fg);animation:blink 1s step-end infinite;pointer-events:none}
+@keyframes blink{50%{background:transparent}}
+.hint{font-size:14px;opacity:0;transition:opacity .6s;font-family:Georgia,serif}
+.hint.on{opacity:.4}
+
+.pill{display:flex;gap:2px;position:relative;opacity:0;pointer-events:none;transition:opacity .4s}
+.pill::after{content:"";position:absolute;top:100%;left:50%;margin-left:-9px;border:9px solid transparent;border-top-color:var(--chip);border-bottom:0}
+.typed .pill{opacity:.25;pointer-events:auto}
+.typed .stage:hover .pill,.typed .pill:focus-within,.drawer-open .pill{opacity:1}
+.chip{background:var(--chip);height:40px;line-height:40px;padding:0 12px;font-size:17px;white-space:nowrap;max-width:60vw;overflow:hidden;text-overflow:ellipsis}
+.chip.icon{width:44px;padding:0;display:grid;place-items:center;color:var(--mute)}
+.chip.icon:hover{color:var(--fg)}
+.chip svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+#liga[aria-pressed="true"]{background:var(--fg);color:var(--bg)}
+.inactive,.inactive .headline{color:var(--dim)}
+
+/* Article */
+.result{width:min(720px,100% - 28px);margin:0 auto 120px;font-size:17px;line-height:1.8;transition:color .3s var(--ease)}
+.result[hidden]{display:none}
+.blk{position:relative;margin-bottom:20px}
+.blk>:first-child{outline:0;transition:background .2s,box-shadow .2s;font-family:var(--p-reg,Georgia,serif);font-weight:400}
+.blk>:is(h1,h2,h3,h4):first-child{font-family:var(--p-bold,Georgia,serif);font-size:1.5em;line-height:1.3}
+.blk>ul:first-child{list-style:disc;padding-left:1.2em}
+.blk:hover>:first-child,.blk:focus-within>:first-child{background:var(--chip);box-shadow:0 0 0 10px var(--chip)}
+.ctl{position:absolute;right:-10px;bottom:100%;margin-bottom:10px;display:none;gap:2px;font:13px/30px system-ui,sans-serif}
+.blk:hover .ctl,.blk:focus-within .ctl{display:flex}
+.ctl>*{background:var(--chip);height:30px;padding:0 10px}
+.fade{animation:rise 1.6s var(--ease) both}
+@keyframes rise{from{opacity:0;transform:translateY(60px)}}
+
+/* Corner controls */
+.corner{position:fixed;bottom:10px;width:40px;height:40px;display:grid;place-items:center;z-index:3}
+#light{right:12px}
+#openArticle{left:50%;margin-left:-20px;background:var(--chip)}
+.corner[hidden]{display:none}
+.corner svg{width:20px;height:20px;stroke:var(--fg);fill:none;stroke-width:1.6}
+
+/* Drawer: slides in from the right */
+.drawer{position:fixed;top:0;bottom:0;right:0;width:clamp(332px,calc((100vw - 720px) / 2 - 20px),100vw);background:var(--panel);box-shadow:0 0 46px rgba(0,0,0,.14);z-index:4;display:flex;flex-direction:column;transform:translateX(calc(100% + 50px));transition:transform .6s var(--ease)}
+.drawer-open .drawer{transform:none}
+.d-top{display:flex;flex-wrap:wrap;align-items:center;gap:10px 12px;padding:16px 20px 12px;font-size:13px;color:var(--mute);border-bottom:1px solid color-mix(in srgb,var(--fg) 10%,transparent)}
+.d-top b{color:var(--fg);font-size:14px}
+.tabs{order:1;width:100%;display:flex;gap:4px;padding:3px;border-radius:999px;background:color-mix(in srgb,var(--fg) 6%,transparent)}
+.tabs button{flex:1;padding:6px 0;border-radius:999px;font-size:13px;color:var(--mute);transition:background .2s,color .2s}
+.tabs button[aria-pressed="true"]{background:var(--panel);color:var(--fg);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+#dq{order:2;width:100%;border:1px solid color-mix(in srgb,var(--fg) 15%,transparent);border-radius:999px;padding:7px 14px;cursor:text;font-size:14px}
+#dClose{margin-left:auto;font-size:22px;line-height:1;color:var(--fg)}
+#dMsg{padding:24px 20px;color:var(--mute);font-size:14px}
+.d-body{flex:1;min-height:0;display:flex;flex-direction:column}
+/* Wheel: a slice of a huge circle whose centre sits off the drawer's right edge */
+#wheel{position:relative;flex:1;overflow:hidden;touch-action:none;cursor:grab;user-select:none;
+  mask-image:linear-gradient(to bottom,transparent,#000 18%,#000 82%,transparent)}
+#wheel:active{cursor:grabbing}
+.wl{position:absolute;left:0;top:0;transform-origin:0 0;font-size:24px;line-height:1.3;white-space:nowrap;max-width:calc(100% - 60px);overflow:hidden;text-overflow:ellipsis;will-change:transform,opacity}
+.wl.on{opacity:1!important}
+.dot{position:absolute;left:14px;top:50%;width:10px;height:10px;margin-top:-5px;border-radius:50%;background:var(--fg)}
+/* Styles of the family on the dot, each name set in itself */
+#styleBar{display:flex;flex-wrap:wrap;gap:4px 14px;padding:12px 20px 18px;border-top:1px solid color-mix(in srgb,var(--fg) 10%,transparent);max-height:30vh;overflow-y:auto;
+  scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--fg) 22%,transparent) transparent}
+#styleBar:empty{display:none}
+#styleBar button{font-size:19px;opacity:.35;transition:opacity .3s;font-synthesis:none}
+#styleBar button:hover,#styleBar button.on{opacity:1}
+@media (max-width:600px){.drawer{width:100vw}}
+</style>
+</head>
+<body class="">
+<span class="brand">Type Library</span>
+
+<main class="stage empty" id="stage">
+  <div class="pill" id="headPill">
+    <button class="chip icon" id="export" title="Download this font file"><svg viewBox="0 0 24 24"><path d="M12 4v11m-5-5 5 5 5-5M5 19h14"/></svg></button>
+    <button class="chip" id="headName" title="Change headline font">Headline</button>
+    <button class="chip icon" id="liga" aria-pressed="false" title="Ligatures">fi</button>
+  </div>
+  <div class="line" id="line">
+    <h1 class="headline" id="headline" contenteditable="plaintext-only" spellcheck="false" aria-label="Type a word"></h1>
+  </div>
+  <div class="pill" id="paraPill">
+    <button class="chip" id="paraName" title="Change paragraph font">Paragraph</button>
+    <button class="chip icon" id="closeArticle" title="Hide article">×</button>
+  </div>
+  <p class="hint" id="hint">Try typing.</p>
+</main>
+
+<article class="result" id="result" hidden></article>
+
+<button class="corner" id="openArticle" title="Show article" hidden><svg viewBox="0 0 20 20"><path d="M4 6h12M4 10h12M4 14h8"/></svg></button>
+<button class="corner" id="light" title="Lights"><svg viewBox="0 0 20 20"><path d="M7 15h6M8 18h4M10 2a5 5 0 0 0-3 9c.6.5 1 1.2 1 2h4c0-.8.4-1.5 1-2a5 5 0 0 0-3-9z"/></svg></button>
+
+<aside class="drawer" id="drawer" aria-label="Fonts">
+  <div class="d-top">
+    <b id="dTitle">Headline font</b><span id="dCount"></span>
+    <div class="tabs"><button data-src="mine">My fonts</button><button data-src="google">Google Fonts</button></div>
+    <input type="search" id="dq" placeholder="Search your fonts" aria-label="Search fonts">
+    <button id="dClose" aria-label="Close">×</button>
+  </div>
+  <p id="dMsg" hidden></p>
+  <div class="d-body">
+    <div id="wheel" tabindex="0" aria-label="Font wheel: scroll, drag or use arrow keys"><span class="dot"></span></div>
+    <div id="styleBar"></div>
+  </div>
+</aside>
+
+<script>
+// Font names shipped with Windows (HKLM registry). These are left out of the drawer.
+const SYSTEM = new Set(["Agency FB","Agency FB Bold","Algerian","Arial","Arial Black","Arial Bold","Arial Bold Italic","Arial Italic","Arial Narrow","Arial Narrow Bold","Arial Narrow Bold Italic","Arial Narrow Italic","Arial Rounded MT Bold","Bahnschrift","Baskerville Old Face","Bauhaus 93","Bell MT","Bell MT Bold","Bell MT Italic","Berlin Sans FB","Berlin Sans FB Bold","Berlin Sans FB Demi Bold","Bernard MT Condensed","Blackadder ITC","Bodoni MT","Bodoni MT Black","Bodoni MT Black Italic","Bodoni MT Bold","Bodoni MT Bold Italic","Bodoni MT Condensed","Bodoni MT Condensed Bold","Bodoni MT Condensed Bold Italic","Bodoni MT Condensed Italic","Bodoni MT Italic","Bodoni MT Poster Compressed","Book Antiqua","Book Antiqua Bold","Book Antiqua Bold Italic","Book Antiqua Italic","Bookman Old Style","Bookman Old Style Bold","Bookman Old Style Bold Italic","Bookman Old Style Italic","Bookshelf Symbol 7","Bradley Hand ITC","Britannic Bold","Broadway","Brush Script MT Italic","Calibri","Calibri Bold","Calibri Bold Italic","Calibri Italic","Calibri Light","Calibri Light Italic","Californian FB","Californian FB Bold","Californian FB Italic","Calisto MT","Calisto MT Bold","Calisto MT Bold Italic","Calisto MT Italic","Cambria","Cambria Bold","Cambria Bold Italic","Cambria Italic","Cambria Math","Candara","Candara Bold","Candara Bold Italic","Candara Italic","Candara Light","Candara Light Italic","Castellar","Centaur","Century","Century Gothic","Century Gothic Bold","Century Gothic Bold Italic","Century Gothic Italic","Century Schoolbook","Century Schoolbook Bold","Century Schoolbook Bold Italic","Century Schoolbook Italic","Chiller","Colonna MT","Comic Sans MS","Comic Sans MS Bold","Comic Sans MS Bold Italic","Comic Sans MS Italic","Consolas","Consolas Bold","Consolas Bold Italic","Consolas Italic","Constantia","Constantia Bold","Constantia Bold Italic","Constantia Italic","Cooper Black","Copperplate Gothic Bold","Copperplate Gothic Light","Corbel","Corbel Bold","Corbel Bold Italic","Corbel Italic","Corbel Light","Corbel Light Italic","Courier 10,12,15","Courier 10,12,15 (120)","Courier New","Courier New Bold","Courier New Bold Italic","Courier New Italic","Curlz MT","Dubai Bold","Dubai Light","Dubai Medium","Dubai Regular","Ebrima","Ebrima Bold","Edwardian Script ITC","Elephant","Elephant Italic","Engravers MT","Eras Bold ITC","Eras Demi ITC","Eras Light ITC","Eras Medium ITC","Felix Titling","Footlight MT Light","Forte","Franklin Gothic Book","Franklin Gothic Book Italic","Franklin Gothic Demi","Franklin Gothic Demi Cond","Franklin Gothic Demi Italic","Franklin Gothic Heavy","Franklin Gothic Heavy Italic","Franklin Gothic Medium","Franklin Gothic Medium Cond","Franklin Gothic Medium Italic","Freestyle Script","French Script MT","Gabriola","Gadugi","Gadugi Bold","Garamond","Garamond Bold","Garamond Italic","Geist Black","Geist Black Italic","Geist Bold","Geist Bold Italic","Geist ExtraBold","Geist ExtraBold Italic","Geist ExtraLight","Geist ExtraLight Italic","Geist Light","Geist Light Italic","Geist Medium","Geist Medium Italic","Geist Mono Black","Geist Mono Black Italic","Geist Mono Bold","Geist Mono Bold Italic","Geist Mono ExtraBold","Geist Mono ExtraBold Italic","Geist Mono ExtraLight","Geist Mono ExtraLight Italic","Geist Mono Italic","Geist Mono Light","Geist Mono Light Italic","Geist Mono Medium","Geist Mono Medium Italic","Geist Mono Regular","Geist Mono SemiBold","Geist Mono SemiBold Italic","Geist Mono Thin","Geist Mono Thin Italic","Geist Regular","Geist Regular Italic","Geist SemiBold","Geist SemiBold Italic","Geist Thin","Geist Thin Italic","Georgia","Georgia Bold","Georgia Bold Italic","Georgia Italic","Gigi","Gill Sans MT","Gill Sans MT Bold","Gill Sans MT Bold Italic","Gill Sans MT Condensed","Gill Sans MT Ext Condensed Bold","Gill Sans MT Italic","Gill Sans Ultra Bold","Gill Sans Ultra Bold Condensed","Gloucester MT Extra Condensed","Goudy Old Style","Goudy Old Style Bold","Goudy Old Style Italic","Goudy Stout","Haettenschweiler","Harlow Solid Italic","Harrington","High Tower Text","High Tower Text Italic","IBM Plex Mono Bold","IBM Plex Mono Bold Italic","IBM Plex Mono ExtraLight","IBM Plex Mono ExtraLight Italic","IBM Plex Mono Italic","IBM Plex Mono Light","IBM Plex Mono Light Italic","IBM Plex Mono Medium","IBM Plex Mono Medium Italic","IBM Plex Mono Regular","IBM Plex Mono SemiBold","IBM Plex Mono SemiBold Italic","IBM Plex Mono Thin","IBM Plex Mono Thin Italic","IBM Plex Sans","IBM Plex Sans Bold","IBM Plex Sans Bold Italic","IBM Plex Sans ExtLt","IBM Plex Sans ExtLt Italic","IBM Plex Sans Italic","IBM Plex Sans Light","IBM Plex Sans Light Italic","IBM Plex Sans Medm","IBM Plex Sans Medm Italic","IBM Plex Sans SmBld","IBM Plex Sans SmBld Italic","IBM Plex Sans Text","IBM Plex Sans Text Italic","IBM Plex Sans Thin","IBM Plex Sans Thin Italic","Impact","Imprint MT Shadow","In","Informal Roman","Ink Free","Inter Black","Inter Black Italic","Inter Bold","Inter Bold Italic","Inter Display Black","Inter Display Black Italic","Inter Display Bold","Inter Display Bold Italic","Inter Display ExtraBold","Inter Display ExtraBold Italic","Inter Display ExtraLight","Inter Display ExtraLight Italic","Inter Display Italic","Inter Display Light","Inter Display Light Italic","Inter Display Medium","Inter Display Medium Italic","Inter Display Regular","Inter Display SemiBold","Inter Display SemiBold Italic","Inter Display Thin","Inter Display Thin Italic","Inter ExtraBold","Inter ExtraBold Italic","Inter ExtraLight","Inter ExtraLight Italic","Inter Italic","Inter Light","Inter Light Italic","Inter Medium","Inter Medium Italic","Inter Regular","Inter SemiBold","Inter SemiBold Italic","Inter Thin","Inter Thin Italic","Inter Variable","Inter Variable Italic","Javanese Text","Jokerman","Juice ITC","Kristen ITC","Kunstler Script","Leelawadee","Leelawadee Bold","Leelawadee UI","Leelawadee UI Bold","Leelawadee UI Semilight","Lucida Bright","Lucida Bright Demibold","Lucida Bright Demibold Italic","Lucida Bright Italic","Lucida Calligraphy Italic","Lucida Console","Lucida Fax Demibold","Lucida Fax Demibold Italic","Lucida Fax Italic","Lucida Fax Regular","Lucida Handwriting Italic","Lucida Sans Demibold Italic","Lucida Sans Demibold Roman","Lucida Sans Italic","Lucida Sans Regular","Lucida Sans Typewriter Bold","Lucida Sans Typewriter Bold Oblique","Lucida Sans Typewriter Oblique","Lucida Sans Typewriter Regular","Lucida Sans Unicode","Magneto Bold","Maiandra GD","Malgun Gothic","Malgun Gothic Bold","Malgun Gothic SemiLight","Matura MT Script Capitals","Microsoft Himalaya","Microsoft JhengHei","Microsoft JhengHei Bold","Microsoft JhengHei Light","Microsoft JhengHei UI","Microsoft JhengHei UI Bold","Microsoft JhengHei UI Light","Microsoft New Tai Lue","Microsoft New Tai Lue Bold","Microsoft PhagsPa","Microsoft PhagsPa Bold","Microsoft Sans Serif","Microsoft Tai Le","Microsoft Tai Le Bold","Microsoft Uighur","Microsoft Uighur Bold","Microsoft YaHei","Microsoft YaHei Bold","Microsoft YaHei Light","Microsoft YaHei UI","Microsoft YaHei UI Bold","Microsoft YaHei UI Light","Microsoft Yi Baiti","Migra Black","Migra Bold","Migra Extrabold","Migra Extralight","Migra Italic Black Italic","Migra Italic Bold Italic","Migra Italic Extrabold Italic","Migra Italic Extralight Italic","Migra Italic Italic","Migra Italic Light Italic","Migra Italic Medium Italic","Migra Italic Semibold Italic","Migra Light","Migra Medium","Migra Regular","Migra Semibold","MingLiU_HKSCS-ExtB","MingLiU-ExtB","Mistral","Modern","Modern No. 20","Mongolian Baiti","Monotype Corsiva","MS Gothic","MS Outlook","MS PGothic","MS Reference Sans Serif","MS Reference Specialty","MS Sans Serif 8,10,12,14,18,24","MS Sans Serif 8,10,12,14,18,24 (120)","MS Serif 8,10,12,14,18,24","MS Serif 8,10,12,14,18,24 (120)","MS UI Gothic","MT Extra","MV Boli","Myanmar Text","Myanmar Text Bold","Niagara Engraved","Niagara Solid","Nirmala Text","Nirmala Text Bold","Nirmala Text Semilight","Nirmala UI","Nirmala UI Bold","Nirmala UI Semilight","NSimSun","OCR A Extended","Old English Text MT","Onyx","Palace Script MT","Palatino Linotype","Palatino Linotype Bold","Palatino Linotype Bold Italic","Palatino Linotype Italic","Papyrus","Parchment","Perpetua","Perpetua Bold","Perpetua Bold Italic","Perpetua Italic","Perpetua Titling MT Bold","Perpetua Titling MT Light","Playbill","PMingLiU-ExtB","Poor Richard","Pristina","Rage Italic","Ravie","Rockwell","Rockwell Bold","Rockwell Bold Italic","Rockwell Condensed","Rockwell Condensed Bold","Rockwell Extra Bold","Rockwell Italic","Roman","Sans Serif Collection","Script","Script MT Bold","Segoe Fluent Icons","Segoe MDL2 Assets","Segoe Print","Segoe Print Bold","Segoe Script","Segoe Script Bold","Segoe UI","Segoe UI Black","Segoe UI Black Italic","Segoe UI Bold","Segoe UI Bold Italic","Segoe UI Emoji","Segoe UI Historic","Segoe UI Italic","Segoe UI Light","Segoe UI Light Italic","Segoe UI Semibold","Segoe UI Semibold Italic","Segoe UI Semilight","Segoe UI Semilight Italic","Segoe UI Symbol","Segoe UI Variable","Showcard Gothic","SimSun","SimSun-ExtB","SimSun-ExtG","Sitka Text","Sitka Text Italic","Small Fonts","Small Fonts (120)","Snap ITC","Stencil","Sylfaen","Symbol","Tahoma","Tahoma Bold","Tempus Sans ITC","TiemposHeadline-Black","TiemposHeadline-BlackItalic","TiemposHeadline-Bold","TiemposHeadline-BoldItalic","TiemposHeadline-Light","TiemposHeadline-LightItalic","TiemposHeadline-Medium","TiemposHeadline-MediumItalic","TiemposHeadline-Regular","TiemposHeadline-RegularItalic","TiemposHeadline-Semibold","TiemposHeadline-SemiboldItalic","Times New Roman","Times New Roman Bold","Times New Roman Bold Italic","Times New Roman Italic","Trebuchet MS","Trebuchet MS Bold","Trebuchet MS Bold Italic","Trebuchet MS Italic","Tw Cen MT","Tw Cen MT Bold","Tw Cen MT Bold Italic","Tw Cen MT Condensed","Tw Cen MT Condensed Bold","Tw Cen MT Condensed Extra Bold","Tw Cen MT Italic","Verdana","Verdana Bold","Verdana Bold Italic","Verdana Italic","Viner Hand ITC","Vivaldi Italic","Vladimir Script","Webdings","Wide Latin","Wingdings","Wingdings 2","Wingdings 3","Yu Gothic Bold","Yu Gothic Light","Yu Gothic Medium","Yu Gothic Regular","Yu Gothic UI Bold","Yu Gothic UI Light","Yu Gothic UI Regular","Yu Gothic UI Semibold","Yu Gothic UI Semilight"]);
+
+const $ = s => document.getElementById(s);
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('tl.' + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem('tl.' + k, JSON.stringify(v)); } catch {} }
+};
+// Was the click inside `sel`? Uses the path recorded at click time, so it still works when
+// a handler has re-rendered (and detached) the clicked element, e.g. the style row.
+const inside = (e, sel) => e.composedPath().some(n => n.matches?.(sel));
+const esc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const headline = $('headline'), stage = $('stage'), result = $('result'), body = document.body;
+
+/* ---------- Fonts ---------- */
+
+// Installed fonts are referenced with local(), so a saved choice renders before permission is asked.
+const sheet = document.head.appendChild(document.createElement('style')).sheet;
+// Google styles are fetched from Google's CSS and renamed the same way; `text` loads only those letters (wheel labels).
+const faces = new Map();
+function face(s, text) {
+  const key = text ? s.ps + '|' + text : s.ps;
+  if (!faces.has(key)) {
+    const name = 'L' + faces.size;
+    faces.set(key, name); // bare ident: it goes inside style="" attributes
+    if (s.g) {
+      const url = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(s.family)}:ital,wght@${+s.it},${s.w}&display=swap`
+        + (text ? '&text=' + encodeURIComponent(text) : '');
+      fetch(url).then(r => r.text()).then(css => {
+        for (const rule of css.match(/@font-face\s*{[^}]*}/g) || [])
+          sheet.insertRule(rule.replace(/font-family:[^;]+;/, `font-family:"${name}";`).replace(/font-(weight|style):[^;]+;/g, ''));
+      }).catch(() => {});
+    } else {
+      const q = v => v.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+      sheet.insertRule(`@font-face{font-family:"${name}";src:local("${q(s.ps)}"),local("${q(s.full)}")}`);
+    }
+  }
+  return faces.get(key);
+}
+
+// Google Fonts catalogue (gfonts.json, refreshed with gfonts.py), loaded the first time the tab is used.
+const WN = {100:'Thin',200:'ExtraLight',300:'Light',400:'Regular',500:'Medium',600:'SemiBold',700:'Bold',800:'ExtraBold',900:'Black'};
+let gfamilies = null;
+async function ensureGoogle() {
+  if (gfamilies) return true;
+  try {
+    gfamilies = (await (await fetch('gfonts.json')).json()).map(([name, vs], i) => ({ name, i, styles: vs.split(',').map(v => {
+      const w = parseInt(v), it = v.endsWith('i');
+      return { g: true, ps: `g:${name}:${v}`, family: name, w, it,
+        style: it ? (w === 400 ? 'Italic' : WN[w] + ' Italic') : WN[w] || String(w) };
+    }) }));
+    return true;
+  } catch { return msg('Couldn’t load the Google Fonts list. Check your connection.'); }
+}
+
+// Style name -> rough weight. Order matters (extra-bold before bold).
+const W = [[/hairline|thin/i,100],[/extra ?light|ultra ?light|ext ?lt|xlight/i,200],[/light/i,300],[/medium/i,500],
+  [/semi ?bold|demi|semibd/i,600],[/extra ?bold|ultra ?bold|ext ?bd|xbold|heavy/i,800],[/black|ultra/i,900],[/bold|\bbd\b/i,700]];
+const near = (styles, w) => styles.reduce((a, s) => (Math.abs(s.w - w) + s.it * 1000) < (Math.abs(a.w - w) + a.it * 1000) ? s : a);
+
+// Windows reports the old 4-style family names ("Graphik Light", style "Regular"), which splits every
+// weight into its own family. The typographic names (name IDs 16/17) live in the font file itself.
+async function typoName(fd) {
+  const buf = await (await fd.blob()).arrayBuffer();
+  const v = new DataView(buf);
+  if (v.getUint32(0) === 0x74746366) return null;              // .ttc collection: keep Windows' names
+  const tables = v.getUint16(4);
+  for (let i = 0; i < tables; i++) {
+    const r = 12 + 16 * i;
+    if (v.getUint32(r) !== 0x6e616d65) continue;                // 'name'
+    const o = v.getUint32(r + 8), count = v.getUint16(o + 2), strings = o + v.getUint16(o + 4), out = {};
+    for (let j = 0; j < count; j++) {
+      const n = o + 6 + 12 * j;
+      const [pid, lid, id] = [v.getUint16(n), v.getUint16(n + 4), v.getUint16(n + 6)];
+      if (pid !== 3 || lid !== 0x409 || (id !== 16 && id !== 17)) continue;
+      let s = '';
+      for (let k = 0, len = v.getUint16(n + 8), at = strings + v.getUint16(n + 10); k < len; k += 2) s += String.fromCharCode(v.getUint16(at + k));
+      out[id] = s;
+    }
+    return out[16] ? [out[16], out[17] || ''] : null;
+  }
+  return null;
+}
+
+let families = null;
+const fontData = new Map();             // postscript name -> FontData, for downloading the file
+async function ensureFonts() {
+  if (families) return true;
+  if (!('queryLocalFonts' in window)) return msg('This browser can’t read installed fonts. Open the page in Chrome or Edge.');
+  let fonts = [];
+  try { fonts = await queryLocalFonts(); } catch {}
+  // A denied permission can come back as an empty list rather than an error.
+  if (!fonts.length) return msg('Font access is blocked. Click the icon left of the address bar, allow “Fonts”, then reload.');
+
+  // Typographic names, cached per font so files are only read once.
+  const cache = store.get('typo', {});
+  const todo = fonts.filter(f => !(f.postscriptName in cache) && !SYSTEM.has(f.family) && !SYSTEM.has(f.fullName));
+  if (todo.length) msg(`Reading ${todo.length} font files…`);
+  for (let i = 0; i < todo.length; i += 24) {
+    await Promise.all(todo.slice(i, i + 24).map(async f => {
+      try { cache[f.postscriptName] = await typoName(f); } catch { cache[f.postscriptName] = null; }
+    }));
+  }
+  if (todo.length) store.set('typo', cache);
+
+  const map = new Map();
+  for (const f of fonts) {
+    if (fontData.has(f.postscriptName)) continue;
+    fontData.set(f.postscriptName, f);
+    const t = cache[f.postscriptName];
+    const family = t ? t[0] : f.family;
+    // No style name in the file: take it from the full name ("Graphik Light Italic" -> "Light Italic").
+    const style = (t && (t[1] || f.fullName.replace(family, '').trim())) || f.style || 'Regular';
+    if (!map.has(family)) map.set(family, []);
+    map.get(family).push({ ps: f.postscriptName, full: f.fullName, legacy: f.family, style, family,
+      w: (W.find(([r]) => r.test(style)) || [, 400])[1], it: /italic|oblique|\bita\b/i.test(style) });
+  }
+  families = [...map].map(([name, styles]) => ({
+    name, styles: styles.sort((a, b) => a.w - b.w || a.it - b.it || a.style.localeCompare(b.style)),
+    sys: SYSTEM.has(name) || styles.some(s => SYSTEM.has(s.legacy) || SYSTEM.has(s.full))
+  })).sort((a, b) => a.name.localeCompare(b.name));
+  families.forEach((f, i) => f.i = i);
+  $('dMsg').hidden = true;
+  return true;
+}
+function msg(t) { $('dMsg').textContent = t; $('dMsg').hidden = false; return false; }
+
+/* ---------- Choices ---------- */
+
+let head = store.get('head', null);   // one style
+let para = store.get('para', null);   // { name, styles, reg? }
+
+function setHeadFont(s) {
+  headline.style.fontFamily = face(s) + ',system-ui';
+  fit();
+}
+// Body text uses the picked weight (or the one nearest Regular); headings use the one nearest Bold.
+const paraReg = p => p.styles.find(s => s.ps === p.reg) || near(p.styles, 400);
+function setParaFont(p) {
+  result.style.setProperty('--p-reg', face(paraReg(p)) + ',Georgia,serif');
+  result.style.setProperty('--p-bold', face(near(p.styles, 700)) + ',Georgia,serif');
+}
+function applyHead(s) {
+  head = s; store.set('head', s);
+  setHeadFont(s);
+  $('headName').style.fontFamily = face(s) + ',system-ui';
+  $('headName').textContent = s.family;
+  exportIcon();
+}
+function applyPara(f) {
+  para = { name: f.name, styles: f.styles, reg: f.name === para?.name ? para.reg : undefined }; store.set('para', para);
+  setParaFont(para);
+  $('paraName').style.fontFamily = face(paraReg(para)) + ',Georgia,serif';
+  $('paraName').textContent = para.name;
+}
+
+/* ---------- Headline ---------- */
+
+// Fit the line to the width, like Kostić's inputfit: max size, shrink if it overflows.
+function fit() {
+  const max = innerHeight * 0.22;
+  headline.style.fontSize = max + 'px';
+  // Centred text overflows both sides, so measure the text itself, not scrollWidth.
+  const range = document.createRange();
+  range.selectNodeContents(headline);
+  const pad = parseFloat(getComputedStyle(headline).paddingLeft) * 2;
+  const r = (headline.clientWidth - pad) / (range.getBoundingClientRect().width || 1);
+  if (r < 1) headline.style.fontSize = Math.max(16, max * r * 0.97) + 'px';
+}
+addEventListener('resize', fit);
+
+let timer, last = '';
+headline.addEventListener('input', () => {
+  const empty = !headline.textContent;
+  stage.classList.toggle('empty', empty);
+  if (!empty) { body.classList.add('typed'); $('hint').classList.remove('on'); }
+  fit();
+  clearTimeout(timer);
+  timer = setTimeout(lookup, 2200);
+});
+headline.addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); clearTimeout(timer); lookup(); headline.blur(); }
+});
+setTimeout(() => !headline.textContent && $('hint').classList.add('on'), 4000);
+headline.focus();
+document.addEventListener('click', e => {
+  if (!headline.textContent && !inside(e, '.drawer,.pill,.corner,.result')) headline.focus();
+});
+
+/* ---------- Article (Wikipedia, like the original) ---------- */
+
+const TAGS = ['P','H2','H3','H4','UL','OL','BLOCKQUOTE'];
+const strip = t => { let p; do { p = t; t = t.replace(/\s*\([^()]*\)|\s*\[[^\[\]]*\]/g, ''); } while (t !== p); return t; };
+
+async function wiki(term) {
+  const url = 'https://en.wikipedia.org/w/api.php?action=query&prop=extracts|pageprops&format=json&redirects=1&origin=*&titles=' + encodeURIComponent(term);
+  const page = Object.values((await (await fetch(url)).json()).query.pages)[0];
+  return page.missing === undefined && !page.pageprops?.disambiguation && page.extract ? page.extract : null;
+}
+
+async function lookup() {
+  const term = headline.textContent.trim().replace(/[#?]/g, '');
+  if (!term || term === last) return;
+  last = term;
+  let html = null;
+  try { html = await wiki(term) || (term.toLowerCase() !== term ? await wiki(term.toLowerCase()) : null); } catch {}
+
+  let blocks = [];
+  if (html) {
+    for (const el of new DOMParser().parseFromString(html, 'text/html').body.children) {
+      if (/^H[234]$/.test(el.tagName) && /^(see also|references|notes|external links|further reading|bibliography|sources)/i.test(el.textContent.trim())) break;
+      if (TAGS.includes(el.tagName) && el.textContent.trim()) blocks.push(el);
+    }
+    blocks = blocks.slice(0, 15);
+    while (blocks.length && /^H/.test(blocks.at(-1).tagName)) blocks.pop();
+  }
+  if (!blocks.length) {
+    blocks = ['Nothing on that one.',
+      'Try a plainer word: a city, a fruit, a painter. Or skip it and type straight into these paragraphs. They’re editable, so you can test the paragraph font on your own words.']
+      .map((t, i) => Object.assign(document.createElement(i ? 'p' : 'h2'), { textContent: t }));
+  }
+
+  result.innerHTML = '';
+  for (const el of blocks) {
+    const node = document.createElement(el.tagName);
+    if (el.tagName === 'UL' || el.tagName === 'OL') {
+      for (const li of el.querySelectorAll(':scope > li')) node.append(Object.assign(document.createElement('li'), { textContent: strip(li.textContent) }));
+    } else node.textContent = strip(el.textContent);
+    node.contentEditable = 'plaintext-only';
+    node.spellcheck = false;
+    const blk = document.createElement('section');
+    blk.className = 'blk';
+    blk.append(node);
+    blk.insertAdjacentHTML('beforeend', '<span class="ctl" contenteditable="false"><button data-d="-1" title="Smaller">−</button><button data-d="1" title="Larger">+</button></span>');
+    result.append(blk);
+  }
+  showArticle(true);
+  result.classList.remove('fade'); void result.offsetWidth; result.classList.add('fade');
+}
+
+result.addEventListener('click', e => {
+  const b = e.target.closest('[data-d]');
+  if (!b) return;
+  const el = b.closest('.blk').firstElementChild;
+  el.style.fontSize = parseFloat(getComputedStyle(el).fontSize) + +b.dataset.d + 'px';
+});
+
+function showArticle(on) {
+  result.hidden = !on;
+  $('openArticle').hidden = on || !result.childElementCount;
+  $('closeArticle').hidden = !on;
+}
+$('closeArticle').addEventListener('click', () => showArticle(false));
+$('openArticle').addEventListener('click', () => showArticle(true));
+
+/* ---------- Drawer ---------- */
+
+let target = null;
+async function openDrawer(t) {
+  if (target === t) return closeDrawer();
+  target = t;
+  body.classList.add('drawer-open');
+  $('dTitle').textContent = t === 'head' ? 'Headline font' : 'Paragraph font';
+  $('line').classList.toggle('inactive', t === 'para');
+  result.classList.toggle('inactive', t === 'head');
+  initSound().catch(() => {});       // opening the drawer is a click, which lets audio start
+  await loadSource();
+}
+
+// Which list the wheel shows. "My fonts" falls back to Google if font access isn't available.
+let src = store.get('src', 'mine');
+async function loadSource() {
+  $('dMsg').hidden = true;
+  if (src === 'mine' && !(await ensureFonts())) {
+    const why = $('dMsg').textContent;
+    src = 'google';
+    if (await ensureGoogle()) msg(why + ' Showing Google Fonts instead.');
+  } else if (src === 'google') await ensureGoogle();
+  document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-pressed', b.dataset.src === src));
+  if (src === 'mine' ? families : gfamilies) buildWheel(true);
+}
+document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => {
+  src = b.dataset.src; store.set('src', src);
+  $('dq').value = '';
+  loadSource();
+}));
+function closeDrawer() {
+  target = null;
+  body.classList.remove('drawer-open');
+  $('line').classList.remove('inactive');
+  result.classList.remove('inactive');
+}
+
+/* ---------- Wheel (after Framer's "Circle Wrap") ----------
+   Labels sit on one huge circle like spokes; only the slice in view is drawn, so the list can be any length.
+   Whatever stops at the dot is applied. */
+
+const wheel = $('wheel');
+const ROW = 38;                       // px between neighbouring labels at the rim
+let list = [], pos = 0, goal = 0, vel = 0, raf = 0, picked = -1;
+const nodes = new Map();              // index -> label element currently on screen
+
+function buildWheel(jumpToCurrent) {
+  const q = $('dq').value.trim().toLowerCase();
+  const all = src === 'google' ? gfamilies : families.filter(f => !f.sys).length ? families.filter(f => !f.sys) : families;
+  list = all.filter(f => !q || f.name.toLowerCase().includes(q));
+  $('dCount').textContent = `${list.length.toLocaleString()} famil${list.length === 1 ? 'y' : 'ies'}`;
+  nodes.forEach(el => el.remove()); nodes.clear();
+  const cur = target === 'head' ? head?.family : para?.name;
+  const at = jumpToCurrent ? Math.max(0, list.findIndex(f => f.name === cur)) : 0;
+  pos = goal = at; vel = 0; picked = jumpToCurrent ? at : -1;
+  tick = at;                          // no click for the starting position
+  draw();
+  if (!jumpToCurrent) pick();
+  else showStyles();
+}
+
+function draw() {
+  const H = wheel.clientHeight, R = Math.max(700, H * 0.95);
+  const step = ROW / R * 180 / Math.PI;                       // degrees per label
+  const span = Math.asin(Math.min(1, (H / 2 + ROW) / R)) * 180 / Math.PI;
+  const lo = Math.max(0, Math.ceil(pos - span / step)), hi = Math.min(list.length - 1, Math.floor(pos + span / step));
+  for (const [i, el] of nodes) if (i < lo || i > hi) { el.remove(); nodes.delete(i); }
+  for (let i = lo; i <= hi; i++) {
+    let el = nodes.get(i);
+    if (!el) {
+      el = document.createElement('button');
+      el.className = 'wl';
+      el.dataset.i = i;
+      el.tabIndex = -1;
+      el.textContent = list[i].name;                         // set in its own font
+      const s = near(list[i].styles, 400);
+      el.style.fontFamily = face(s, s.g ? list[i].name : undefined) + ',system-ui';   // Google: just the name's letters
+      wheel.append(el); nodes.set(i, el);
+    }
+    const deg = (i - pos) * step, rad = deg * Math.PI / 180;
+    const x = 34 + R - R * Math.cos(rad), y = H / 2 + R * Math.sin(rad);
+    const near0 = Math.max(0, 1 - Math.abs(i - pos));        // 1 at the dot, 0 one row away
+    el.style.transform = `translate(${x}px,${y}px) rotate(${-deg}deg) translate(${near0 * 14}px,-50%)`;
+    el.style.opacity = Math.max(0, .35 * (1 - Math.abs(deg) / span)) + near0 * .65;
+    el.classList.toggle('on', i === picked && Math.abs(i - pos) < .5);
+  }
+  // One click each time a new font reaches the dot, like tuning across radio stations.
+  const r = Math.round(pos);
+  if (r !== tick) { tick = r; click(); }
+}
+
+/* ---------- Click sound ---------- */
+
+let audio, clickBuf, clickAt = 0, tick = -1;
+async function initSound() {
+  if (audio) return audio.resume();
+  audio = new AudioContext();
+  clickBuf = await audio.decodeAudioData(await (await fetch('click.mp3')).arrayBuffer());
+  // Skip silence at the start of the file so the click lands exactly as the font passes the dot.
+  const d = clickBuf.getChannelData(0);
+  let i = 0;
+  while (i < d.length && Math.abs(d[i]) < .02) i++;
+  clickAt = i / clickBuf.sampleRate;
+}
+function click() {
+  if (!clickBuf || audio.state !== 'running') return;
+  const src = audio.createBufferSource();
+  src.buffer = clickBuf;
+  src.playbackRate.value = .96 + Math.random() * .08;   // slight variation, like a real dial
+  const vol = audio.createGain();
+  vol.gain.value = .05;                                  // 5% of the file's volume
+  src.connect(vol).connect(audio.destination);
+  src.start(0, clickAt);
+}
+
+// Spring toward the goal (Framer used spring, bounce .2, .4s).
+function spin() {
+  // Capped speed keeps long spins smooth; the bounce at the end stays under ~5% of a row.
+  vel = Math.max(-.6, Math.min(.6, vel * .55 + (goal - pos) * .1));
+  pos += vel;
+  if (Math.abs(goal - pos) < .002 && Math.abs(vel) < .002) { pos = goal; raf = 0; draw(); return; }
+  draw();
+  raf = requestAnimationFrame(spin);
+}
+function go(to, snap = true) {
+  goal = Math.max(0, Math.min(list.length - 1, to));
+  if (snap) { goal = Math.round(goal); pick(); }
+  if (!raf) raf = requestAnimationFrame(spin);
+}
+
+// Apply whatever lands on the dot.
+function pick() {
+  if (!list.length || goal === picked) return;
+  picked = goal;
+  const f = list[picked];
+  if (target === 'head') { if (head?.family !== f.name) applyHead(near(f.styles, 700)); }
+  else if (target === 'para') applyPara(f);
+  showStyles();
+}
+// Every style of the family on the dot, each name set in itself.
+function showStyles() {
+  const f = list[picked];
+  const cur = target === 'head' ? head?.ps : para && paraReg(para).ps;
+  $('styleBar').innerHTML = f ? f.styles.map((s, j) =>
+    `<button data-j="${j}" class="${s.ps === cur ? 'on' : ''}" style="font-family:${face(s)}">${esc(s.style)}</button>`).join('') : '';
+}
+$('styleBar').addEventListener('click', e => {
+  const b = e.target.closest('[data-j]');
+  if (!b) return;
+  const s = list[picked].styles[b.dataset.j];
+  if (target === 'head') applyHead(s);
+  else { para.reg = s.ps; applyPara(list[picked]); }
+  showStyles();
+});
+
+// Scroll, drag, click or arrow keys turn the wheel.
+let snapT;
+wheel.addEventListener('wheel', e => {
+  e.preventDefault();
+  go(goal + (e.deltaY || e.deltaX) / ROW, false);
+  clearTimeout(snapT);
+  snapT = setTimeout(() => go(goal), 110);
+}, { passive: false });
+let drag = null;
+wheel.addEventListener('pointerdown', e => { drag = { y: e.clientY, g: goal, moved: false }; wheel.setPointerCapture(e.pointerId); });
+wheel.addEventListener('pointermove', e => {
+  if (!drag) return;
+  const dy = e.clientY - drag.y;
+  if (Math.abs(dy) > 4) drag.moved = true;
+  if (drag.moved) go(drag.g - dy / ROW, false);
+});
+wheel.addEventListener('pointerup', e => {
+  if (!drag) return;
+  const label = !drag.moved && document.elementsFromPoint(e.clientX, e.clientY).find(el => el.classList?.contains('wl'));
+  drag = null;
+  go(label ? +label.dataset.i : goal);
+});
+wheel.addEventListener('keydown', e => {
+  const d = { ArrowDown: 1, ArrowUp: -1, PageDown: 8, PageUp: -8 }[e.key];
+  if (d) { e.preventDefault(); go(goal + d); }
+});
+addEventListener('resize', () => target && draw());
+
+$('headName').addEventListener('click', () => openDrawer('head'));
+$('paraName').addEventListener('click', () => openDrawer('para'));
+$('dClose').addEventListener('click', closeDrawer);
+$('dq').addEventListener('input', () => (src === 'google' ? gfamilies : families) && buildWheel(false));
+$('dq').addEventListener('keydown', e => { if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); go(goal + (e.key === 'ArrowDown' ? 1 : -1)); } });
+document.addEventListener('click', e => { if (target && !inside(e, '.drawer,.pill,.result')) closeDrawer(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && target) closeDrawer(); });
+
+/* ---------- Ligatures, download, lights ---------- */
+
+$('liga').addEventListener('click', e => {
+  const on = body.classList.toggle('liga');
+  e.currentTarget.setAttribute('aria-pressed', on);
+});
+
+// Save the headline's font file, or for a Google font, open its page on Google Fonts.
+const ICONS = {
+  download: '<svg viewBox="0 0 24 24"><path d="M12 4v11m-5-5 5 5 5-5M5 19h14"/></svg>',
+  external: '<svg viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>'
+};
+function exportIcon() {
+  $('export').innerHTML = ICONS[head?.g ? 'external' : 'download'];
+  $('export').title = head?.g ? 'Open on Google Fonts' : 'Download this font file';
+}
+$('export').addEventListener('click', async () => {
+  if (!head) return openDrawer('head');
+  if (head.g) return open(`https://fonts.google.com/specimen/${encodeURIComponent(head.family).replace(/%20/g, '+')}`, '_blank', 'noopener');
+  if (!(await ensureFonts())) return openDrawer('head');
+  const fd = fontData.get(head.ps);
+  if (!fd) return;
+  const blob = await fd.blob();
+  const sig = String.fromCharCode(...new Uint8Array(await blob.slice(0, 4).arrayBuffer()));
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(blob),
+    download: `${head.ps}.${sig === 'OTTO' ? 'otf' : sig === 'ttcf' ? 'ttc' : 'ttf'}`
+  });
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+});
+
+const dark = store.get('dark', matchMedia('(prefers-color-scheme: dark)').matches);
+body.classList.toggle('dark', dark);
+$('light').addEventListener('click', () => store.set('dark', body.classList.toggle('dark')));
+
+/* ---------- Start ---------- */
+
+if (head) applyHead(head);
+if (para) applyPara(para);
+fit();
+// Permission already granted: pick a first headline font from your own library.
+navigator.permissions?.query({ name: 'local-fonts' }).then(async p => {
+  if (p.state !== 'granted' || !(await ensureFonts())) return;
+  const pool = families.filter(f => !f.sys);
+  if (!head && pool.length) applyHead(near(pool[Math.floor(Math.random() * pool.length)].styles, 700));
+}).catch(() => {});
+</script>
+</body>
+</html>
