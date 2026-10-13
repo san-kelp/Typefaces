@@ -602,7 +602,7 @@ $('liga').addEventListener('click', e => {
    with opentype.js; both load on first use. Wheel zooms, Space/middle-drag pans, edits are throwaway.
    Points are keyed "<segment>:p|c1|c2". Each segment carries g, the glyph it belongs to. */
 
-var pen = null;        // { segs, orig, twin, sel, cur, drag, z, tx, ty, el, undo, redo, snap, ruler, focus, ... }
+var pen = null;        // { segs, orig, twin, sel, cur, drag, draft, z, tx, ty, el, cv, undo, redo, snap, hide, draw, last, ... }
 const penFonts = new Map();
 function penFont(s) {
   if (!penFonts.has(s.ps)) penFonts.set(s.ps, (async () => {
@@ -628,6 +628,7 @@ function penOff() {
   if (!pen) return;
   removeEventListener('keydown', pen.keys);
   removeEventListener('keyup', pen.keys);
+  removeEventListener('resize', pen.size);
   pen.el.remove();
   pen = null;
 }
@@ -665,48 +666,91 @@ function penPoints() {
 }
 const penPt = k => { const [i, f] = k.split(':'); return f === 'p' ? pen.segs[i].p : pen.segs[i][f]; };
 
+// Redraws are coalesced to one per animation frame (pointer events can arrive faster than that).
 function penDraw() {
-  const v = pen, { segs, sel, cur, drag } = pen;
+  if (!pen || pen.raf) return;
+  pen.raf = requestAnimationFrame(() => { if (pen) { pen.raf = 0; penPaint(); } });
+}
+
+// The outline is one SVG path; points, handles and previews are painted on a canvas, because thousands of SVG
+// nodes rebuilt on every pointer move is what made long words janky.
+function penPaint() {
+  const v = pen, { segs, sel, cur, drag, el, cv, ctx, dpr } = pen;
   const X = q => sx(v, q.x), Y = q => sy(v, q.y);
-  let d = '', h = '';
-  segs.forEach((s, i) => {
-    if (s.t === 'Z') return (d += 'Z');
-    d += s.t === 'C' ? `C${X(s.c1)} ${Y(s.c1)} ${X(s.c2)} ${Y(s.c2)} ${X(s.p)} ${Y(s.p)}` : `${s.t}${X(s.p)} ${Y(s.p)}`;
-    const mark = (k, q, line) => {
-      const on = sel.has(i + ':' + k);
-      if (line) h += `<line class="ln" x1="${X(line)}" y1="${Y(line)}" x2="${X(q)}" y2="${Y(q)}"/>`;
-      h += k === 'p' ? `<rect class="h${on ? ' on' : ''}" x="${X(q) - 5}" y="${Y(q) - 5}" width="10" height="10"/>`
-                     : `<circle class="h${on ? ' on' : ''}" cx="${X(q)}" cy="${Y(q)}" r="5"/>`;
-    };
-    if (s.t === 'C') { mark('c1', s.c1, prevPoint(segs, i)); mark('c2', s.c2, s.p); }
-    mark('p', s.p);
-  });
-  if (cur && !drag && !pen.draft) {                      // the outline a press would bend (or add a point to)
-    const near = penPoints().some(([, q]) => Math.hypot(X(q) - cur.x, Y(q) - cur.y) <= 7);
-    const shp = penShapeAt(cur), sg = !near && !(shp && sel.has(shp.keys[0])) && penSegAt(cur, 6);
-    v.el.querySelector('svg').style.cursor = !near && !sg && !pen.draw && shp ? 'move' : '';
-    if (sg) {
-      const s = segs[sg.i], a = prevPoint(segs, sg.i);
-      h = `<path class="hl" d="M${X(a)} ${Y(a)}${s.t === 'C' ? `C${X(s.c1)} ${Y(s.c1)} ${X(s.c2)} ${Y(s.c2)} ${X(s.p)} ${Y(s.p)}` : `L${X(s.p)} ${Y(s.p)}`}"/>` + h;
+  let d = '';
+  for (const s of segs) {
+    if (s.t === 'Z') d += 'Z';
+    else d += s.t === 'C' ? `C${X(s.c1)} ${Y(s.c1)} ${X(s.c2)} ${Y(s.c2)} ${X(s.p)} ${Y(s.p)}` : `${s.t}${X(s.p)} ${Y(s.p)}`;
+  }
+  el.querySelector('.glyphs').setAttribute('d', d);
+
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, innerWidth, innerHeight);
+  const cs = getComputedStyle(el), fg = cs.getPropertyValue('--fg').trim(), bg = cs.getPropertyValue('--bg').trim(), ac = cs.getPropertyValue('--accent').trim();
+  let cursor = '';
+  if (!v.hide) {
+    ctx.lineWidth = 1.5;
+    // the outline a press would bend (or add a point to)
+    if (cur && !drag && !pen.draft) {
+      const near = penPoints().some(([, q]) => Math.hypot(X(q) - cur.x, Y(q) - cur.y) <= 7);
+      const shp = penShapeAt(cur), sg = !near && !(shp && sel.has(shp.keys[0])) && penSegAt(cur, 6);
+      cursor = !near && !sg && !pen.draw && shp ? 'move' : '';
+      if (sg) {
+        const s = segs[sg.i], a = prevPoint(segs, sg.i);
+        ctx.beginPath(); ctx.moveTo(X(a), Y(a));
+        if (s.t === 'C') ctx.bezierCurveTo(X(s.c1), Y(s.c1), X(s.c2), Y(s.c2), X(s.p), Y(s.p)); else ctx.lineTo(X(s.p), Y(s.p));
+        ctx.globalAlpha = .7; ctx.lineWidth = 3; ctx.strokeStyle = ac; ctx.stroke();
+        ctx.globalAlpha = 1; ctx.lineWidth = 1.5;
+      }
+    }
+    // handle lines, then points: unselected in one batch, selected in another
+    ctx.strokeStyle = ac;
+    ctx.beginPath();
+    segs.forEach((s, i) => {
+      if (s.t !== 'C') return;
+      const a = prevPoint(segs, i);
+      ctx.moveTo(X(a), Y(a)); ctx.lineTo(X(s.c1), Y(s.c1));
+      ctx.moveTo(X(s.p), Y(s.p)); ctx.lineTo(X(s.c2), Y(s.c2));
+    });
+    ctx.stroke();
+    for (const on of [false, true]) {
+      ctx.fillStyle = on ? ac : bg; ctx.strokeStyle = on ? ac : fg;
+      ctx.beginPath();                                   // squares: anchors
+      segs.forEach((s, i) => { if (s.t !== 'Z' && sel.has(i + ':p') === on) ctx.rect(X(s.p) - 5, Y(s.p) - 5, 10, 10); });
+      ctx.fill(); ctx.stroke();
+      ctx.beginPath();                                   // circles: curve handles
+      segs.forEach((s, i) => {
+        if (s.t !== 'C') return;
+        for (const k of ['c1', 'c2']) if (sel.has(i + ':' + k) === on) { ctx.moveTo(X(s[k]) + 5, Y(s[k])); ctx.arc(X(s[k]), Y(s[k]), 5, 0, 6.2832); }
+      });
+      ctx.fill(); ctx.stroke();
+    }
+    // the shape being drawn, with a rubber band to the cursor
+    if (pen.draft?.pts.length) {
+      const D = pen.draft.pts, last = D[D.length - 1], cw = cur && pt((cur.x - v.tx) / v.z, (cur.y - v.ty) / v.z);
+      const seg = (a, b) => ctx.bezierCurveTo(X(a.hout || a.p), Y(a.hout || a.p), X(b.hin || b.p), Y(b.hin || b.p), X(b.p), Y(b.p));
+      ctx.strokeStyle = ac; ctx.beginPath(); ctx.moveTo(X(D[0].p), Y(D[0].p));
+      for (let i = 1; i < D.length; i++) seg(D[i - 1], D[i]);
+      if (cw && !drag) seg(last, { p: cw });
+      ctx.stroke();
+      const close = cw && D.length > 2 && Math.hypot(X(D[0].p) - cur.x, Y(D[0].p) - cur.y) < 10;
+      D.forEach((q, i) => {
+        for (const k of ['hin', 'hout']) if (q[k]) {
+          ctx.strokeStyle = ac; ctx.beginPath(); ctx.moveTo(X(q.p), Y(q.p)); ctx.lineTo(X(q[k]), Y(q[k])); ctx.stroke();
+          ctx.fillStyle = bg; ctx.strokeStyle = fg; ctx.beginPath(); ctx.arc(X(q[k]), Y(q[k]), 4, 0, 6.2832); ctx.fill(); ctx.stroke();
+        }
+        const on = i === 0 && close;
+        ctx.fillStyle = on ? ac : bg; ctx.strokeStyle = on ? ac : fg;
+        ctx.fillRect(X(q.p) - 5, Y(q.p) - 5, 10, 10); ctx.strokeRect(X(q.p) - 5, Y(q.p) - 5, 10, 10);
+      });
+    }
+    if (drag?.kind === 'marquee' && cur) {
+      ctx.fillStyle = 'rgba(31,69,255,.1)'; ctx.strokeStyle = ac; ctx.setLineDash([4, 2]);
+      const x = Math.min(drag.o.x, cur.x), y = Math.min(drag.o.y, cur.y), w = Math.abs(cur.x - drag.o.x), h = Math.abs(cur.y - drag.o.y);
+      ctx.fillRect(x, y, w, h); ctx.strokeRect(x, y, w, h); ctx.setLineDash([]);
     }
   }
-  if (pen.draft?.pts.length) {                           // the shape being drawn, with a rubber band to the cursor
-    const D = pen.draft.pts, last = D[D.length - 1], cw = cur && pt((cur.x - v.tx) / v.z, (cur.y - v.ty) / v.z);
-    const seg = (a, b) => `C${X(a.hout || a.p)} ${Y(a.hout || a.p)} ${X(b.hin || b.p)} ${Y(b.hin || b.p)} ${X(b.p)} ${Y(b.p)}`;
-    let dd = `M${X(D[0].p)} ${Y(D[0].p)}`;
-    for (let i = 1; i < D.length; i++) dd += seg(D[i - 1], D[i]);
-    if (cw && !drag) dd += seg(last, { p: cw });
-    h += `<path class="dr" d="${dd}"/>`;
-    const close = cw && D.length > 2 && Math.hypot(X(D[0].p) - cur.x, Y(D[0].p) - cur.y) < 10;
-    D.forEach((q, i) => {
-      for (const k of ['hin', 'hout']) if (q[k]) h += `<line class="ln" x1="${X(q.p)}" y1="${Y(q.p)}" x2="${X(q[k])}" y2="${Y(q[k])}"/><circle class="h" cx="${X(q[k])}" cy="${Y(q[k])}" r="4"/>`;
-      h += `<rect class="h${i === 0 && close ? ' on' : ''}" x="${X(q.p) - 5}" y="${Y(q.p) - 5}" width="10" height="10"/>`;
-    });
-  }
-  if (drag?.kind === 'marquee') h += `<rect class="mq" x="${Math.min(drag.o.x, cur.x)}" y="${Math.min(drag.o.y, cur.y)}" width="${Math.abs(cur.x - drag.o.x)}" height="${Math.abs(cur.y - drag.o.y)}"/>`;
-  const el = pen.el;
-  el.querySelector('.glyphs').setAttribute('d', d);
-  el.querySelector('.handles').innerHTML = v.hide ? '' : h;      // Hide: just the shape, for a clean preview
+  el.querySelector('svg').style.cursor = cursor;
   const base = el.querySelector('.base');
   base.setAttribute('y1', sy(v, 0)); base.setAttribute('y2', sy(v, 0));
   base.style.display = v.hide ? 'none' : '';
@@ -736,6 +780,7 @@ function penSave(snap = copy(pen.segs)) {          // call before a change; one 
 }
 function penRestore(from, to) {
   if (!from.length) return;
+  pen.drag = null;                                  // a drag in progress points into the array being replaced
   to.push(copy(pen.segs));
   pen.segs = from.pop();
   pen.twin = penTwins(pen.segs);
@@ -818,6 +863,12 @@ function penDelete() {
   penReplace(penBuild(cs));
 }
 
+// Point at t on the cubic a -> p with handles c1, c2.
+const bez = (a, c1, c2, p, t) => {
+  const u = 1 - t, k = [u * u * u, 3 * u * u * t, 3 * u * t * t, t * t * t];
+  return pt(k[0] * a.x + k[1] * c1.x + k[2] * c2.x + k[3] * p.x, k[0] * a.y + k[1] * c1.y + k[2] * c2.y + k[3] * p.y);
+};
+
 // The segment nearest a screen point, within `r` px: { d, i, t }. Samples each segment, which is plenty for picking.
 function penSegAt(at, r) {
   const { segs } = pen;
@@ -826,10 +877,8 @@ function penSegAt(at, r) {
     if (s.t === 'Z' || s.t === 'M') return;
     const a = prevPoint(segs, i);
     for (let k = 1; k < 24; k++) {
-      const t = k / 24, u = 1 - t;
-      const P = s.t === 'C'
-        ? pt(u*u*u*a.x + 3*u*u*t*s.c1.x + 3*u*t*t*s.c2.x + t*t*t*s.p.x, u*u*u*a.y + 3*u*u*t*s.c1.y + 3*u*t*t*s.c2.y + t*t*t*s.p.y)
-        : pt(a.x + (s.p.x - a.x) * t, a.y + (s.p.y - a.y) * t);
+      const t = k / 24;
+      const P = s.t === 'C' ? bez(a, s.c1, s.c2, s.p, t) : pt(a.x + (s.p.x - a.x) * t, a.y + (s.p.y - a.y) * t);
       const d = Math.hypot(sx(pen, P.x) - at.x, sy(pen, P.y) - at.y);
       if (d < r && (!best || d < best.d)) best = { d, i, t };
     }
@@ -888,6 +937,7 @@ function penSmooth(i) {
 }
 
 function penSvg() {
+  if (!pen.segs.some(s => s.t !== 'Z')) return '';   // nothing left to export
   const r = n => Math.round(n * 100) / 100;
   let d = '', x1 = 1e9, y1 = 1e9, x2 = -1e9, y2 = -1e9;
   const ext = q => { x1 = Math.min(x1, q.x); y1 = Math.min(y1, q.y); x2 = Math.max(x2, q.x); y2 = Math.max(y2, q.y); };
@@ -934,8 +984,8 @@ function penShapeAt(at) {
     for (let j = start; j < i; j++) {
       const q = segs[j];
       if (q.t === 'C' && prev) for (let k = 1; k <= 8; k++) {
-        const t = k / 8, u = 1 - t;
-        poly.push([sx(pen, u*u*u*prev.x + 3*u*u*t*q.c1.x + 3*u*t*t*q.c2.x + t*t*t*q.p.x), sy(pen, u*u*u*prev.y + 3*u*u*t*q.c1.y + 3*u*t*t*q.c2.y + t*t*t*q.p.y)]);
+        const P = bez(prev, q.c1, q.c2, q.p, k / 8);
+        poly.push([sx(pen, P.x), sy(pen, P.y)]);
       } else poly.push([sx(pen, q.p.x), sy(pen, q.p.y)]);
       prev = q.p;
     }
@@ -997,10 +1047,13 @@ function penPaste(inPlace) {
 
 /* ----- Opening ----- */
 
+var penBusy = false;                                // set while the font loads, so a second press can't open a second editor
 async function penOn() {
-  if (pen || !head?.g) return;
+  if (pen || penBusy || !head?.g) return;
+  penBusy = true;
   let font;
-  try { font = await penFont(head); } catch { return penNote('Couldn’t load outlines for this font. Try another weight.'); }
+  try { font = await penFont(head); } catch { penBusy = false; return penNote('Couldn’t load outlines for this font. Try another weight.'); }
+  penBusy = false;
   closeDrawer();
   headline.blur();
   const L = body.classList.contains('liga'), text = headline.textContent || head.family;
@@ -1025,7 +1078,7 @@ async function penOn() {
   el.className = 'penEd';
   const ic = d => `<svg viewBox="0 0 24 24"><path d="${d}"/></svg>`;
   const btn = (id, tip, d) => `<button class="chip icon" id="${id}" data-a="${id}" data-tip="${tip}" aria-label="${tip}">${ic(d)}</button>`;
-  el.innerHTML = '<svg><line class="base" x1="0" x2="100%"/><path class="glyphs"/><g class="handles"/></svg>'
+  el.innerHTML = '<svg><line class="base" x1="0" x2="100%"/><path class="glyphs"/></svg><canvas class="penCv"></canvas>'
     + '<button class="penDone" data-a="done">Return</button>'
     + '<div class="penBar"><button class="chip" data-a="reset" data-tip="Put the shape back as it was">Reset</button>'
     + '<button class="chip" data-a="fit" data-tip="Fit the word to the window">Fit</button>'
@@ -1038,7 +1091,7 @@ async function penOn() {
     + btn('clip', 'Copy SVG', 'M9 9h11v11H9zM5 15V5h10')
     + btn('help', 'Shortcuts (?)', 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM9.7 9.4a2.4 2.4 0 1 1 3.4 2.2c-.7.4-1.1.9-1.1 1.6M12 16.8v.1')
     + '<span class="zoom"></span></div>'
-    + '<aside class="penKeys open"><header><b>Shortcuts</b><button class="chip icon" data-a="help" title="Close">×</button></header><p><kbd>Scroll</kbd><span>Zoom in and out</span></p><p><kbd>Space + drag</kbd><span>Pan the view</span></p><p><kbd>Drag a point</kbd><span>Move it</span></p><p><kbd>Drag inside a shape</kbd><span>Select and move all of it</span></p><p><kbd>Double-click a point</kbd><span>Round it (lines become curves), or make it sharp</span></p><p><kbd>Drag a curve</kbd><span>Bend it (the highlight shows which)</span></p><p><kbd>Shift + click</kbd><span>Add to the selection</span></p><p><kbd>Drag on empty space</kbd><span>Select a group</span></p><p><kbd>Double-click a curve</kbd><span>Add a point</span></p><p><kbd>Delete</kbd><span>Remove the selected point</span></p><p><kbd>Ctrl + C / X / V</kbd><span>Copy, cut, paste a whole shape</span></p><p><kbd>Ctrl + D</kbd><span>Duplicate it (Ctrl + Shift + V pastes in place)</span></p><p><kbd>Arrow keys</kbd><span>Nudge (Shift = 1 unit)</span></p><p><kbd>Ctrl + Z</kbd><span>Undo (Shift for redo)</span></p><p><kbd>P</kbd><span>Pen: draw a new shape</span></p><p><kbd>H</kbd><span>Hide points and grid (preview)</span></p><p><kbd>Click an outline</kbd><span>In pen mode: add a point to it</span></p><p><kbd>Click, or click + drag</kbd><span>In pen mode, in empty space: start a shape</span></p><p><kbd>Enter</kbd><span>Close the shape (Esc cancels)</span></p><p><kbd>Esc</kbd><span>Close the editor</span></p></aside>';
+    + '<aside class="penKeys open"><header><b>Shortcuts</b><button class="chip icon" data-a="help" title="Close">×</button></header><p><kbd>Scroll</kbd><span>Zoom in and out</span></p><p><kbd>Space + drag</kbd><span>Pan the view</span></p><p><kbd>Drag a point</kbd><span>Move it</span></p><p><kbd>Drag inside a shape</kbd><span>Select and move all of it</span></p><p><kbd>Double-click a point</kbd><span>Round it (lines become curves), or make it sharp</span></p><p><kbd>Drag a curve</kbd><span>Bend it (the highlight shows which)</span></p><p><kbd>Shift + click</kbd><span>Add to the selection</span></p><p><kbd>Drag on empty space</kbd><span>Select a group</span></p><p><kbd>Double-click a curve</kbd><span>Add a point</span></p><p><kbd>Delete</kbd><span>Remove the selected point</span></p><p><kbd>Ctrl + C / X / V</kbd><span>Copy, cut, paste a whole shape</span></p><p><kbd>Ctrl + D</kbd><span>Duplicate it (Ctrl + Shift + V pastes in place)</span></p><p><kbd>Arrow keys</kbd><span>Nudge (Shift = 1 unit)</span></p><p><kbd>Ctrl + Z</kbd><span>Undo (Shift for redo)</span></p><p><kbd>P</kbd><span>Pen: draw a new shape</span></p><p><kbd>H</kbd><span>Hide points and grid (preview)</span></p><p><kbd>Click an outline</kbd><span>In pen mode: add a point to it (Shift: start a shape there instead)</span></p><p><kbd>Click, or click + drag</kbd><span>In pen mode, in empty space: start a shape</span></p><p><kbd>Enter</kbd><span>Close the shape (Esc cancels)</span></p><p><kbd>Esc</kbd><span>Close the editor</span></p></aside>';
   document.body.append(el);
 
   let x1 = 1e9, y1 = 1e9, x2 = -1e9, y2 = -1e9;
@@ -1047,20 +1100,37 @@ async function penOn() {
   const fit = Math.min(W * .8 / Math.max(1, x2 - x1), H * .5 / Math.max(1, y2 - y1));
   const home = { z: fit, tx: W / 2 - fit * (x1 + x2) / 2, ty: H / 2 - fit * (y1 + y2) / 2 };
   pen = { segs, twin: penTwins(segs), sel: new Set(), cur: null, drag: null, orig: copy(segs), el, fit, ...home,
-          space: false, undo: [], redo: [], snap: true, hide: false, draw: false, draft: null };
+          space: false, undo: [], redo: [], snap: true, hide: false, draw: false, draft: null, raf: 0 };
+  // The overlay canvas is kept at device resolution and re-sized with the window.
+  pen.cv = el.querySelector('.penCv');
+  pen.ctx = pen.cv.getContext('2d');
+  pen.size = () => {
+    pen.dpr = window.devicePixelRatio || 1;
+    pen.cv.width = Math.round(innerWidth * pen.dpr);
+    pen.cv.height = Math.round(innerHeight * pen.dpr);
+    penDraw();
+  };
+  pen.size();
+  addEventListener('resize', pen.size);
 
   el.querySelector('#snap').setAttribute('aria-pressed', 'true');      // snap starts on
   const setDraw = on => {
-    pen.draw = on; pen.draft = null; pen.sel = new Set();
+    pen.draw = on; pen.draft = null; pen.sel = new Set(); pen.last = null;
     el.classList.toggle('drawing', on);
     el.querySelector('#draw').setAttribute('aria-pressed', on);
     penDraw();
   };
   const arrows = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
   pen.keys = e => {
-    if (e.code === 'Space') { pen.space = e.type === 'keydown'; e.preventDefault(); return; }
+    if (e.target.closest?.('input,textarea,select,[contenteditable]')) return;
+    if (e.code === 'Space') {
+      pen.space = e.type === 'keydown';
+      if (!e.target.closest?.('button')) e.preventDefault();      // a focused toolbar button still activates on Space
+      return;
+    }
     if (e.type !== 'keydown') return;
     const mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
+    if (pen.hide && k !== 'h' && k !== 'escape' && e.key !== '?') return;     // previewing: nothing edits what you can't see
     if (k === 'escape') { if (pen.draft) { pen.draft = null; penDraw(); } else if (pen.draw) setDraw(false); else penOff(); }
     else if (k === 'p' && !mod) setDraw(!pen.draw);
     else if (k === 'h' && !mod) toggle('hide', 'hide');
@@ -1096,9 +1166,11 @@ async function penOn() {
   const showKeys = on => { keys.classList.toggle('open', on); help.setAttribute('aria-pressed', on); };
   showKeys(true);
   const tuck = () => showKeys(false);
+  let tucked = false;
+  const tuckOnce = e => { if (tucked || e.target.closest?.('.penKeys')) return; tucked = true; tuck(); };
   keys.querySelector('[data-a="help"]').addEventListener('click', tuck);
-  el.querySelector('svg').addEventListener('pointerdown', tuck, { once: true });
-  el.addEventListener('wheel', tuck, { once: true, passive: true });
+  el.querySelector('svg').addEventListener('pointerdown', tuckOnce);
+  el.addEventListener('wheel', tuckOnce, { passive: true });
   const toggle = (key, id) => { pen[key] = !pen[key]; el.querySelector('#' + id).setAttribute('aria-pressed', pen[key]); penDraw(); };
   el.querySelector('.penDone').addEventListener('click', penOff);
   // Tooltips: a boxed label above the toolbar, over whichever button is hovered or focused.
@@ -1140,12 +1212,15 @@ async function penOn() {
     else if (a === 'snap') toggle('snap', 'snap');
     else if (a === 'hide') toggle('hide', 'hide');
     else if (a === 'help') showKeys(!keys.classList.contains('open'));
-    else if (a === 'save') {
+    else if (a === 'save' || a === 'clip') {
+      const svg = penSvg();
+      if (!svg) return penNote('Nothing to export: the drawing is empty.');
+      if (a === 'clip') return navigator.clipboard.writeText(svg).then(() => penNote('SVG copied'), () => penNote('Couldn’t copy. Use Download instead.'));
       const f = Object.assign(document.createElement('a'), { download: `${head.family}-${(headline.textContent || 'outline').slice(0, 24)}.svg`.replace(/[^\w.-]+/g, '_'),
-        href: URL.createObjectURL(new Blob([penSvg()], { type: 'image/svg+xml' })) });
+        href: URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' })) });
       f.click();
       setTimeout(() => URL.revokeObjectURL(f.href), 1000);
-    } else if (a === 'clip') navigator.clipboard.writeText(penSvg()).then(() => penNote('SVG copied'), () => penNote('Couldn’t copy. Use Download instead.'));
+    }
   });
 
   const svg = el.querySelector('svg');
@@ -1154,6 +1229,7 @@ async function penOn() {
   const hit = (q, r = 7) => penPoints().map(([k, p]) => [k, Math.hypot(sx(pen, p.x) - q.x, sy(pen, p.y) - q.y)])
     .filter(([, d]) => d <= r).sort((a, b) => a[1] - b[1])[0];
   el.addEventListener('wheel', e => {
+    if (e.target.closest('.penKeys')) return;           // let the shortcuts drawer scroll itself
     e.preventDefault();
     const q = at(e), f = Math.max(pen.fit * .2, Math.min(pen.fit * 60, pen.z * Math.exp(-Math.sign(e.deltaY) * Math.min(Math.abs(e.deltaY), 100) * .0015)));
     const w = world(q);                                      // keep the point under the cursor fixed
@@ -1176,7 +1252,7 @@ async function penOn() {
     if (pen.draw && !onPoint) {                         // pen mode: click places a point, drag pulls out its handles
       const D = pen.draft?.pts || [];
       if (D.length > 2 && Math.hypot(sx(pen, D[0].p.x) - pen.cur.x, sy(pen, D[0].p.y) - pen.cur.y) < 10) return penFinishDraft();
-      const sg = !pen.draft && penSegAt(pen.cur, 8);
+      const sg = !pen.draft && !e.shiftKey && penSegAt(pen.cur, 6);   // Shift: start a shape right next to an outline
       if (sg) {                                         // on an existing outline: add a point there, and drag it into place
         const q = penPt(penInsertAt(sg));
         pen.drag = { kind: 'move', q, want: pt(q.x, q.y), snap: null };
@@ -1219,6 +1295,7 @@ async function penOn() {
     const prev = pen.cur || at(e);
     pen.cur = at(e);
     const dx = pen.cur.x - prev.x, dy = pen.cur.y - prev.y;
+    if (pen.drag && pen.last && Math.hypot(pen.cur.x - pen.last.x, pen.cur.y - pen.last.y) > 6) pen.last = null;   // it was a drag, not a click
     if (pen.drag?.kind === 'move' && (dx || dy)) {
       const g = pen.drag, w = g.want, s = pen.snap ? pen.st : 0;
       if (g.snap) { penSave(g.snap); g.snap = null; }
