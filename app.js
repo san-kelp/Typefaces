@@ -678,7 +678,7 @@ const penPt = k => { const [i, f] = k.split(':'); return f === 'p' ? pen.segs[i]
 function penDraw() {
   const v = pen, { segs, sel, cur, drag } = pen, only = penOnly();
   const X = q => sx(v, q.x), Y = q => sy(v, q.y);
-  const w = q => !cur ? 0 : Math.max(0, Math.min(1, 1 - (Math.hypot(X(q) - cur.x, Y(q) - cur.y) - 30) / 40));   // fades 30 -> 70px
+  const w = q => v.all ? 1 : !cur ? 0 : Math.max(0, Math.min(1, 1 - (Math.hypot(X(q) - cur.x, Y(q) - cur.y) - 30) / 40));   // fades 30 -> 70px
   let d = '', h = '';
   segs.forEach((s, i) => {
     if (s.t === 'Z') return (d += 'Z');
@@ -826,9 +826,9 @@ function penDelete() {
   penReplace(penBuild(cs));
 }
 
-// Double-click a curve to add a point there, keeping its shape (de Casteljau split).
-function penInsert(at) {
-  const { segs } = pen, only = penOnly();
+// The segment nearest a screen point, within `r` px: { d, i, t }. Samples each segment, which is plenty for picking.
+function penSegAt(at, only, r) {
+  const { segs } = pen;
   let best = null;
   segs.forEach((s, i) => {
     if (s.t === 'Z' || s.t === 'M' || (only != null && s.g !== only)) return;
@@ -839,9 +839,53 @@ function penInsert(at) {
         ? pt(u*u*u*a.x + 3*u*u*t*s.c1.x + 3*u*t*t*s.c2.x + t*t*t*s.p.x, u*u*u*a.y + 3*u*u*t*s.c1.y + 3*u*t*t*s.c2.y + t*t*t*s.p.y)
         : pt(a.x + (s.p.x - a.x) * t, a.y + (s.p.y - a.y) * t);
       const d = Math.hypot(sx(pen, P.x) - at.x, sy(pen, P.y) - at.y);
-      if (d < 10 && (!best || d < best.d)) best = { d, i, t };
+      if (d < r && (!best || d < best.d)) best = { d, i, t };
     }
   });
+  return best;
+}
+
+// For anchor j: the segment arriving at it (a) and leaving it (b), following a closed contour across its seam.
+function penLinks(j) {
+  const { segs, twin } = pen, isM = segs[j].t === 'M', tw = twin[j];
+  return { a: isM ? tw : j, b: isM ? j + 1 : (tw !== undefined && tw < j ? tw + 1 : j + 1) };
+}
+
+// The handle on the far side of this one's anchor, if the two are lined up (a smooth point): { key, P, len }.
+function penPartner(k) {
+  const { segs } = pen, [si, f] = k.split(':'), i = +si;
+  if (f === 'p') return null;
+  let j = i;
+  if (f === 'c1') { j = i - 1; while (j >= 0 && segs[j].t === 'Z') j--; }
+  if (j < 0) return null;
+  const { a, b } = penLinks(j), pi = f === 'c1' ? a : b;
+  if (pi === undefined || !segs[pi] || segs[pi].t !== 'C' || pi === i) return null;
+  const key = pi + ':' + (f === 'c1' ? 'c2' : 'c1'), P = segs[j].p, h = penPt(k), o = penPt(key);
+  const u = pt(h.x - P.x, h.y - P.y), v = pt(o.x - P.x, o.y - P.y), lu = Math.hypot(u.x, u.y), lv = Math.hypot(v.x, v.y);
+  if (lu < .01 || lv < .01) return null;
+  const cross = Math.abs(u.x * v.y - u.y * v.x) / (lu * lv), dot = u.x * v.x + u.y * v.y;
+  return cross < .05 && dot < 0 ? { key, P, len: lv } : null;
+}
+
+// Alt + double-click a segment: straight line <-> curve.
+function penFlip(at) {
+  const sg = penSegAt(at, penOnly(), 10);
+  if (!sg) return;
+  penSave();
+  const s = pen.segs[sg.i], a = prevPoint(pen.segs, sg.i);
+  if (s.t === 'C') {
+    pen.segs[sg.i] = { t: 'L', p: s.p, g: s.g };
+    pen.sel.delete(sg.i + ':c1'); pen.sel.delete(sg.i + ':c2');
+  } else {
+    const at3 = f => pt(a.x + (s.p.x - a.x) * f, a.y + (s.p.y - a.y) * f);
+    pen.segs[sg.i] = { t: 'C', c1: at3(1 / 3), c2: at3(2 / 3), p: s.p, g: s.g };
+  }
+  penDraw();
+}
+
+// Double-click a curve to add a point there, keeping its shape (de Casteljau split).
+function penInsert(at) {
+  const { segs } = pen, best = penSegAt(at, penOnly(), 10);
   if (!best) return;
   penSave();
   const s = segs[best.i], a = prevPoint(segs, best.i), t = best.t, mid = (p, q) => pt(p.x + (q.x - p.x) * t, p.y + (q.y - p.y) * t);
@@ -859,8 +903,7 @@ function penInsert(at) {
 
 // Double-click an anchor: with handles -> corner (handles retract); without -> smooth (handles line up with its neighbours).
 function penSmooth(i) {
-  const { segs, twin } = pen, isM = segs[i].t === 'M', P = segs[i].p, tw = twin[i];
-  const a = isM ? tw : i, b = isM ? i + 1 : (tw !== undefined && tw < i ? tw + 1 : i + 1);
+  const { segs } = pen, P = segs[i].p, { a, b } = penLinks(i);
   if (a === undefined || !segs[b] || segs[b].t === 'Z') return;
   const A = prevPoint(segs, a), B = segs[b].p;
   penSave();
@@ -931,10 +974,11 @@ async function penOn() {
     + btn('ruler', 'Rulers', 'M3 8h18v8H3zM7 8v3M11 8v4M15 8v3M19 8v4')
     + btn('snap', 'Snap to grid', 'M4 4h16v16H4zM4 12h16M12 4v16')
     + btn('focus', 'Focus: show only the points of the letter you are in', 'M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM12 3v3M12 18v3M3 12h3M18 12h3')
+    + btn('allh', 'Show every handle', 'M5 12a2 2 0 1 0 4 0 2 2 0 1 0-4 0M15 12a2 2 0 1 0 4 0 2 2 0 1 0-4 0M9 12h6')
     + btn('save', 'Download SVG', 'M12 4v11m-5-5 5 5 5-5M5 19h14')
     + btn('clip', 'Copy SVG', 'M9 9h11v11H9zM5 15V5h10')
     + '<span class="zoom"></span></div>'
-    + '<details class="penKeys" open><summary>Shortcuts</summary><p><kbd>Scroll</kbd><span>Zoom in and out</span></p><p><kbd>Space + drag</kbd><span>Pan the view</span></p><p><kbd>Drag a point</kbd><span>Move it</span></p><p><kbd>Shift + click</kbd><span>Add to the selection</span></p><p><kbd>Drag on empty space</kbd><span>Select a group</span></p><p><kbd>Double-click a curve</kbd><span>Add a point</span></p><p><kbd>Double-click a point</kbd><span>Round it, or make it sharp</span></p><p><kbd>Delete</kbd><span>Remove the selected point</span></p><p><kbd>Arrow keys</kbd><span>Nudge (Shift = 1 unit)</span></p><p><kbd>Ctrl + Z</kbd><span>Undo (Shift for redo)</span></p><p><kbd>Esc</kbd><span>Close the editor</span></p><p class="note"><b>Focus</b> (the target button): shows the points of one letter only, the one you are working in, so neighbouring letters stay out of the way.</p></details>';
+    + '<details class="penKeys" open><summary>Shortcuts</summary><p><kbd>Scroll</kbd><span>Zoom in and out</span></p><p><kbd>Space + drag</kbd><span>Pan the view</span></p><p><kbd>Drag a point</kbd><span>Move it</span></p><p><kbd>Drag a curve</kbd><span>Bend it</span></p><p><kbd>Alt + drag a handle</kbd><span>Move it alone</span></p><p><kbd>Shift + click</kbd><span>Add to the selection</span></p><p><kbd>Drag on empty space</kbd><span>Select a group</span></p><p><kbd>Double-click a curve</kbd><span>Add a point</span></p><p><kbd>Double-click a point</kbd><span>Round it, or make it sharp</span></p><p><kbd>Alt + double-click</kbd><span>Line ⇄ curve</span></p><p><kbd>Delete</kbd><span>Remove the selected point</span></p><p><kbd>Arrow keys</kbd><span>Nudge (Shift = 1 unit)</span></p><p><kbd>Ctrl + Z</kbd><span>Undo (Shift for redo)</span></p><p><kbd>Esc</kbd><span>Close the editor</span></p><p class="note"><b>Focus</b> (the target button): shows the points of one letter only, the one you are working in, so neighbouring letters stay out of the way. <b>Handles</b> shows every handle at once.</p></details>';
   document.body.append(el);
 
   let x1 = 1e9, y1 = 1e9, x2 = -1e9, y2 = -1e9;
@@ -943,7 +987,7 @@ async function penOn() {
   const fit = Math.min(W * .8 / Math.max(1, x2 - x1), H * .5 / Math.max(1, y2 - y1));
   const home = { z: fit, tx: W / 2 - fit * (x1 + x2) / 2, ty: H / 2 - fit * (y1 + y2) / 2 };
   pen = { segs, twin: penTwins(segs), sel: new Set(), cur: null, drag: null, orig: copy(segs), el, fit, ...home,
-          space: false, undo: [], redo: [], snap: false, ruler: false, focus: false };
+          space: false, undo: [], redo: [], snap: false, ruler: false, focus: false, all: false };
 
   const arrows = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
   pen.keys = e => {
@@ -981,6 +1025,7 @@ async function penOn() {
     else if (a === 'ruler') toggle('ruler', 'ruler');
     else if (a === 'snap') toggle('snap', 'snap');
     else if (a === 'focus') toggle('focus', 'focus');
+    else if (a === 'allh') toggle('all', 'allh');
     else if (a === 'save') {
       const f = Object.assign(document.createElement('a'), { download: `${head.family}-${(headline.textContent || 'outline').slice(0, 24)}.svg`.replace(/[^\w.-]+/g, '_'),
         href: URL.createObjectURL(new Blob([penSvg()], { type: 'image/svg+xml' })) });
@@ -1012,10 +1057,13 @@ async function penOn() {
       if (e.shiftKey) pen.sel.has(k) ? pen.sel.delete(k) : pen.sel.add(k);
       else if (!pen.sel.has(k)) pen.sel = new Set([k]);
       const q = penPt(k);
-      pen.drag = { kind: 'move', q, want: pt(q.x, q.y), snap: copy(pen.segs) };   // snapshot is only kept if the point actually moves
+      // The snapshot is only kept if the point actually moves. A lone smooth handle drags its partner round with it.
+      pen.drag = { kind: 'move', q, want: pt(q.x, q.y), snap: copy(pen.segs), mirror: pen.sel.size === 1 ? penPartner(k) : null };
     } else {
       if (!e.shiftKey) pen.sel = new Set();
-      pen.drag = { kind: 'marquee', o: pen.cur };
+      const sg = penSegAt(pen.cur, penOnly(), 8);
+      pen.drag = sg ? { kind: 'curve', i: sg.i, t: Math.max(.15, Math.min(.85, sg.t)), snap: copy(pen.segs) }
+                    : { kind: 'marquee', o: pen.cur };
     }
     penDraw();
   });
@@ -1029,6 +1077,20 @@ async function penOn() {
       w.x += dx / pen.z; w.y += dy / pen.z;
       const tx = s ? Math.round(w.x / s) * s : w.x, ty = s ? Math.round(w.y / s) * s : w.y;
       penMove(tx - g.q.x, ty - g.q.y);                       // grabbed point lands on the grid; the rest follow
+      if (g.mirror && !e.altKey) {                           // Alt breaks the pair, so one handle moves alone
+        const { P, len, key } = g.mirror, o = penPt(key), l = Math.hypot(g.q.x - P.x, g.q.y - P.y) || 1;
+        o.x = P.x - (g.q.x - P.x) / l * len; o.y = P.y - (g.q.y - P.y) / l * len;
+      }
+    } else if (pen.drag?.kind === 'curve' && (dx || dy)) {
+      const g = pen.drag;
+      if (g.snap) { penSave(g.snap); g.snap = null; }
+      let sg = pen.segs[g.i];
+      if (sg.t === 'L') {                                    // bending a straight edge turns it into a curve
+        const a = prevPoint(pen.segs, g.i), th = f => pt(a.x + (sg.p.x - a.x) * f, a.y + (sg.p.y - a.y) * f);
+        sg = pen.segs[g.i] = { t: 'C', c1: th(1 / 3), c2: th(2 / 3), p: sg.p, g: sg.g };
+      }
+      const k = 1 / (3 * g.t * (1 - g.t)) / pen.z;           // both handles move so the grabbed point follows the cursor
+      sg.c1.x += dx * k; sg.c1.y += dy * k; sg.c2.x += dx * k; sg.c2.y += dy * k;
     } else if (pen.drag?.kind === 'pan') { pen.tx += dx; pen.ty += dy; }
     penDraw();
   });
@@ -1047,7 +1109,7 @@ async function penOn() {
   svg.addEventListener('dblclick', e => {
     const q = at(e), h = hit(q);
     if (h && h[0].endsWith(':p')) penSmooth(+h[0].split(':')[0]);
-    else if (!h) penInsert(q);
+    else if (!h) (e.altKey ? penFlip : penInsert)(q);
   });
   svg.addEventListener('contextmenu', e => e.preventDefault());
   svg.addEventListener('pointerleave', () => { if (pen && !pen.drag) { pen.cur = null; penDraw(); } });
