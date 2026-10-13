@@ -1107,8 +1107,9 @@ async function penOn() {
     + btn('allh', 'Show every handle', 'M5 12a2 2 0 1 0 4 0 2 2 0 1 0-4 0M15 12a2 2 0 1 0 4 0 2 2 0 1 0-4 0M9 12h6')
     + btn('save', 'Download SVG', 'M12 4v11m-5-5 5 5 5-5M5 19h14')
     + btn('clip', 'Copy SVG', 'M9 9h11v11H9zM5 15V5h10')
+    + btn('help', 'Shortcuts (?)', 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM9.7 9.4a2.4 2.4 0 1 1 3.4 2.2c-.7.4-1.1.9-1.1 1.6M12 16.8v.1')
     + '<span class="zoom"></span></div>'
-    + '<details class="penKeys" open><summary>Shortcuts</summary><p><kbd>Scroll</kbd><span>Zoom in and out</span></p><p><kbd>Space + drag</kbd><span>Pan the view</span></p><p><kbd>Drag a point</kbd><span>Move it</span></p><p><kbd>Drag inside a shape</kbd><span>Select and move all of it</span></p><p><kbd>Drag a curve</kbd><span>Bend it (the highlight shows which)</span></p><p><kbd>Alt + drag a handle</kbd><span>Move it alone</span></p><p><kbd>Shift + click</kbd><span>Add to the selection</span></p><p><kbd>Drag on empty space</kbd><span>Select a group</span></p><p><kbd>Double-click a curve</kbd><span>Add a point</span></p><p><kbd>Double-click a point</kbd><span>Round it, or make it sharp</span></p><p><kbd>Delete</kbd><span>Remove the selected point</span></p><p><kbd>Ctrl + C / X / V</kbd><span>Copy, cut, paste a whole shape</span></p><p><kbd>Ctrl + D</kbd><span>Duplicate it (Ctrl + Shift + V pastes in place)</span></p><p><kbd>Arrow keys</kbd><span>Nudge (Shift = 1 unit)</span></p><p><kbd>Ctrl + Z</kbd><span>Undo (Shift for redo)</span></p><p><kbd>P</kbd><span>Pen: draw a new shape</span></p><p><kbd>Click an outline</kbd><span>In pen mode: add a point to it</span></p><p><kbd>Click, or click + drag</kbd><span>In pen mode, in empty space: start a shape</span></p><p><kbd>Enter</kbd><span>Close the shape (Esc cancels)</span></p><p><kbd>Esc</kbd><span>Close the editor</span></p><p class="note"><b>Focus</b> (the target button): shows the points of one letter only, the one you are working in, so neighbouring letters stay out of the way. <b>Handles</b> shows every handle at once. <b>Reverse</b> flips a shape’s direction, which turns a shape you drew into a hole.</p></details>';
+    + '<aside class="penKeys open"><header><b>Shortcuts</b><button class="chip icon" data-a="help" title="Close">×</button></header><p><kbd>Scroll</kbd><span>Zoom in and out</span></p><p><kbd>Space + drag</kbd><span>Pan the view</span></p><p><kbd>Drag a point</kbd><span>Move it</span></p><p><kbd>Drag inside a shape</kbd><span>Select and move all of it</span></p><p><kbd>Drag a curve</kbd><span>Bend it (the highlight shows which)</span></p><p><kbd>Alt + drag a handle</kbd><span>Move it alone</span></p><p><kbd>Shift + click</kbd><span>Add to the selection</span></p><p><kbd>Drag on empty space</kbd><span>Select a group</span></p><p><kbd>Double-click a curve</kbd><span>Add a point</span></p><p><kbd>Double-click a point</kbd><span>Round it, or make it sharp</span></p><p><kbd>Delete</kbd><span>Remove the selected point</span></p><p><kbd>Ctrl + C / X / V</kbd><span>Copy, cut, paste a whole shape</span></p><p><kbd>Ctrl + D</kbd><span>Duplicate it (Ctrl + Shift + V pastes in place)</span></p><p><kbd>Arrow keys</kbd><span>Nudge (Shift = 1 unit)</span></p><p><kbd>Ctrl + Z</kbd><span>Undo (Shift for redo)</span></p><p><kbd>P</kbd><span>Pen: draw a new shape</span></p><p><kbd>Click an outline</kbd><span>In pen mode: add a point to it</span></p><p><kbd>Click, or click + drag</kbd><span>In pen mode, in empty space: start a shape</span></p><p><kbd>Enter</kbd><span>Close the shape (Esc cancels)</span></p><p><kbd>Esc</kbd><span>Close the editor</span></p><p class="note"><b>Focus</b> (the target button): shows the points of one letter only, the one you are working in, so neighbouring letters stay out of the way. <b>Handles</b> shows every handle at once. <b>Reverse</b> flips a shape’s direction, which turns a shape you drew into a hole.</p></aside>';
   document.body.append(el);
 
   let x1 = 1e9, y1 = 1e9, x2 = -1e9, y2 = -1e9;
@@ -1135,6 +1136,7 @@ async function penOn() {
     const mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
     if (k === 'escape') { if (pen.draft) { pen.draft = null; penDraw(); } else if (pen.draw) setDraw(false); else penOff(); }
     else if (k === 'p' && !mod) setDraw(!pen.draw);
+    else if (e.key === '?') showKeys(!keys.classList.contains('open'));
     else if (k === 'enter' && pen.draft) { e.preventDefault(); penFinishDraft(); }
     else if (k === 'backspace' && pen.draft) {          // take back the last point
       e.preventDefault();
@@ -1162,7 +1164,11 @@ async function penOn() {
   addEventListener('keyup', pen.keys);
 
   // The shortcuts card starts open so the tools are obvious, and tucks itself away on first use (the summary reopens it).
-  const keys = el.querySelector('.penKeys'), tuck = () => { keys.open = false; };
+  const keys = el.querySelector('.penKeys'), help = el.querySelector('#help');
+  const showKeys = on => { keys.classList.toggle('open', on); help.setAttribute('aria-pressed', on); };
+  showKeys(true);
+  const tuck = () => showKeys(false);
+  keys.querySelector('[data-a="help"]').addEventListener('click', tuck);
   el.querySelector('svg').addEventListener('pointerdown', tuck, { once: true });
   el.addEventListener('wheel', tuck, { once: true, passive: true });
   const toggle = (key, id) => { pen[key] = !pen[key]; el.querySelector('#' + id).setAttribute('aria-pressed', pen[key]); penDraw(); };
@@ -1179,6 +1185,7 @@ async function penOn() {
     else if (a === 'snap') toggle('snap', 'snap');
     else if (a === 'focus') toggle('focus', 'focus');
     else if (a === 'allh') toggle('all', 'allh');
+    else if (a === 'help') showKeys(!keys.classList.contains('open'));
     else if (a === 'save') {
       const f = Object.assign(document.createElement('a'), { download: `${head.family}-${(headline.textContent || 'outline').slice(0, 24)}.svg`.replace(/[^\w.-]+/g, '_'),
         href: URL.createObjectURL(new Blob([penSvg()], { type: 'image/svg+xml' })) });

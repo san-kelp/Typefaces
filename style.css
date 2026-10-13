@@ -58,16 +58,18 @@ button,input{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .penEd .rl rect{fill:var(--chip)}
 .penEd .rl line{stroke:var(--mute);stroke-width:1}
 .penEd .rl .cur{stroke:var(--accent)}
-.penBar{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);width:max-content;max-width:calc(100vw - 32px);display:flex;flex-wrap:wrap;justify-content:center;gap:10px;align-items:center;padding:12px;border-radius:6px;background:var(--obj-bg);box-shadow:var(--obj)}
-.penBar .chip{height:40px;line-height:40px;padding:0 18px;font-size:14px}
-.penBar .chip.icon{width:40px;padding:0}
+.penBar{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);width:max-content;max-width:calc(100vw - 32px);display:flex;flex-wrap:wrap;justify-content:center;gap:6px;align-items:center;padding:12px;border-radius:6px;background:var(--obj-bg);box-shadow:var(--obj)}
+.penBar .chip{height:40px;line-height:40px;padding:0 14px;font-size:14px}
+.penBar .chip.icon{width:36px;padding:0}
 .penBar .chip:disabled{opacity:.35;pointer-events:none}
 .penBar .zoom{font-size:13px;color:var(--mute);min-width:48px}
 .penNote{position:fixed;left:50%;bottom:64px;transform:translateX(-50%);z-index:101;font-size:14px;opacity:.6;white-space:nowrap}
-.penKeys{position:absolute;left:36px;top:36px;width:260px;padding:14px 16px;border-radius:6px;background:var(--obj-bg);box-shadow:var(--obj);font-size:13px;line-height:1.35;color:var(--fg)}
-.penKeys summary{cursor:pointer;font-weight:600;list-style:none}
-.penKeys summary::after{content:' ▾';color:var(--mute)}
-.penKeys:not([open]) summary::after{content:' ▸'}
+.penKeys{position:absolute;right:24px;top:24px;bottom:96px;width:300px;overflow:auto;padding:16px 18px;border-radius:6px;background:var(--obj-bg);box-shadow:var(--obj);font-size:13px;line-height:1.35;color:var(--fg);
+  transform:translateX(calc(100% + 40px));transition:transform .4s var(--ease)}
+.penKeys.open{transform:none}
+.penKeys header{display:flex;align-items:center;justify-content:space-between}
+.penKeys header b{font-size:15px}
+.penKeys header .chip{height:32px;width:32px;line-height:32px;font-size:18px}
 .penKeys p{display:flex;justify-content:space-between;gap:12px;margin-top:8px}
 .penKeys kbd{font:inherit;font-weight:600;white-space:nowrap}
 .penKeys span{color:var(--mute);text-align:right}
@@ -80,7 +82,7 @@ button,input{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .chip.icon{width:50px;padding:0;display:grid;place-items:center;color:var(--mute)}
 .chip.icon:hover{color:var(--fg)}
 .chip svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-#liga[aria-pressed="true"],#snap[aria-pressed="true"],#ruler[aria-pressed="true"],#focus[aria-pressed="true"],#allh[aria-pressed="true"],#draw[aria-pressed="true"]{background:linear-gradient(var(--accent-lo),var(--accent));color:#fff;box-shadow:inset 3px 4px 8px rgba(0,0,30,.35),inset 1px 1px 2px rgba(0,0,30,.3)}
+#liga[aria-pressed="true"],#snap[aria-pressed="true"],#ruler[aria-pressed="true"],#focus[aria-pressed="true"],#allh[aria-pressed="true"],#draw[aria-pressed="true"],#help[aria-pressed="true"]{background:linear-gradient(var(--accent-lo),var(--accent));color:#fff;box-shadow:inset 3px 4px 8px rgba(0,0,30,.35),inset 1px 1px 2px rgba(0,0,30,.3)}
 .inactive,.inactive .headline{color:var(--dim)}
 
 /* Article */
