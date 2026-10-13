@@ -1024,7 +1024,8 @@ async function penOn() {
   const ic = d => `<svg viewBox="0 0 24 24"><path d="${d}"/></svg>`;
   const btn = (id, title, d) => `<button class="chip icon" id="${id}" data-a="${id}" title="${title}">${ic(d)}</button>`;
   el.innerHTML = '<svg><line class="base" x1="0" x2="100%"/><path class="glyphs"/><g class="handles"/></svg>'
-    + '<div class="penBar"><button class="chip" data-a="done">Done</button><button class="chip" data-a="reset">Reset</button>'
+    + '<button class="penDone" data-a="done">Done</button>'
+    + '<div class="penBar"><button class="chip" data-a="reset">Reset</button>'
     + '<button class="chip" data-a="fit">Fit</button>'
     + btn('draw', 'Draw a new shape (P)', 'M4 20l4-1 11-11-3-3L5 16zM14 6l3 3')
     + btn('undo', 'Undo (Ctrl+Z)', 'M9 14 4 9l5-5M4 9h10a6 6 0 0 1 0 12h-4')
@@ -1095,10 +1096,10 @@ async function penOn() {
   el.querySelector('svg').addEventListener('pointerdown', tuck, { once: true });
   el.addEventListener('wheel', tuck, { once: true, passive: true });
   const toggle = (key, id) => { pen[key] = !pen[key]; el.querySelector('#' + id).setAttribute('aria-pressed', pen[key]); penDraw(); };
+  el.querySelector('.penDone').addEventListener('click', penOff);
   el.querySelector('.penBar').addEventListener('click', e => {
     const a = e.target.closest('[data-a]')?.dataset.a;
-    if (a === 'done') penOff();
-    else if (a === 'reset') { penSave(); penReplace(copy(pen.orig)); }
+    if (a === 'reset') { penSave(); penReplace(copy(pen.orig)); }
     else if (a === 'fit') { Object.assign(pen, home); penDraw(); }
     else if (a === 'draw') setDraw(!pen.draw);
     else if (a === 'undo') penRestore(pen.undo, pen.redo);

@@ -60,7 +60,7 @@ button,input{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .penBar .chip:disabled{opacity:.35;pointer-events:none}
 .penBar .zoom{font-size:13px;color:var(--mute);min-width:48px}
 .penNote{position:fixed;left:50%;bottom:64px;transform:translateX(-50%);z-index:101;font-size:14px;opacity:.6;white-space:nowrap}
-.penKeys{position:absolute;right:24px;top:24px;bottom:96px;width:300px;overflow:auto;padding:16px 18px;border-radius:6px;background:var(--obj-bg);box-shadow:var(--obj);font-size:13px;line-height:1.35;color:var(--fg);
+.penKeys{position:absolute;right:24px;top:84px;bottom:96px;width:300px;overflow:auto;padding:16px 18px;border-radius:6px;background:var(--obj-bg);box-shadow:var(--obj);font-size:13px;line-height:1.35;color:var(--fg);
   transform:translateX(calc(100% + 40px));transition:transform .4s var(--ease)}
 .penKeys.open{transform:none}
 .penKeys header{display:flex;align-items:center;justify-content:space-between}
@@ -100,7 +100,7 @@ button,input{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 
 /* Corner keys */
 .corner{position:fixed;bottom:24px;width:44px;height:44px;display:grid;place-items:center;z-index:3;background:var(--rec-bg);box-shadow:var(--rec)}
-#light{right:24px;top:24px;bottom:auto}
+#light{right:24px;top:24px;bottom:auto;z-index:101}   /* above the outline editor, so the theme can be switched there too */
 #openArticle{left:50%;margin-left:-22px}
 .corner[hidden]{display:none}
 .corner svg{width:20px;height:20px;stroke:var(--fg);fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
@@ -155,3 +155,4 @@ body.nolist #selBar,body.nolist #pointer{display:none}
 .penEd.drawing>svg{cursor:crosshair}
 .penEd .hl{fill:none;stroke:var(--accent);stroke-width:3;opacity:.7;pointer-events:none}
 .penEd .handles *{pointer-events:none}
+.penDone{position:absolute;left:24px;top:24px;height:44px;padding:0 20px;border-radius:6px;background:var(--obj-bg);box-shadow:var(--obj);font-size:14px;color:var(--fg)}
