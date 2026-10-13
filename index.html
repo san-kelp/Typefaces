@@ -152,6 +152,9 @@ button,input{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .search{position:relative;display:block}
 #dq{width:100%;height:46px;border-radius:999px;padding:0 22px;font-size:13px;cursor:text;background:var(--rec-bg);box-shadow:var(--rec);outline:0}
 #dMsg{font-size:13px;color:var(--mute);line-height:1.5;padding:0 6px}
+body.nolist #selBar,body.nolist #pointer{display:none}
+#dMsg strong{color:var(--fg)}
+#dMsg .chip{margin-top:14px;height:40px;line-height:40px;padding:0 18px;font-size:14px}
 .count{position:fixed;bottom:48px;left:48px;font-size:13px;color:var(--mute);z-index:6;opacity:0;transition:opacity .15s}
 .drawer-open .count{opacity:1;transition:opacity .35s .6s}
 
@@ -201,7 +204,7 @@ button,input{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 <div class="disc dial-ui" id="disc"></div>
 <div id="wheel" class="dial-ui" tabindex="0" aria-label="Font dial: scroll, drag or use the arrow keys"><span class="sel-bar" id="selBar"></span><svg class="ticks"><path id="ticks"/></svg><span class="pointer" id="pointer"></span></div>
 <div class="controls dial-ui">
-  <div class="tabs"><button data-src="mine">My fonts</button><button data-src="google">Google</button></div>
+  <div class="tabs"><button data-src="google">Google</button><button data-src="mine">My fonts</button></div>
   <label class="search"><input type="search" id="dq" placeholder="Search my fonts" aria-label="Search fonts"></label>
   <p id="dMsg" hidden></p>
 </div>
@@ -527,17 +530,38 @@ async function openDrawer(t) {
 }
 
 // Which list the dial shows. "My fonts" falls back to Google if font access isn't available.
-let src = store.get('src', 'mine');
+let src = store.get('src', 'google');
 async function loadSource() {
   $('dMsg').hidden = true;
-  if (src === 'mine' && !(await ensureFonts())) {
-    const why = $('dMsg').textContent;
-    src = 'google';
-    if (await ensureGoogle()) msg(why + ' Showing Google Fonts instead.');
-  } else if (src === 'google') await ensureGoogle();
   document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-pressed', b.dataset.src === src));
   $('dq').placeholder = src === 'google' ? 'Search Google Fonts' : 'Search my fonts';
+  if (src === 'mine' && !families) {
+    // Nothing to show until the browser has been allowed to read installed fonts, so the dial stays empty and asks.
+    const granted = 'queryLocalFonts' in window && await navigator.permissions.query({ name: 'local-fonts' }).then(p => p.state === 'granted', () => false);
+    if (!granted) return askFonts();
+    if (!(await ensureFonts())) return emptyDial();
+  } else if (src === 'google') await ensureGoogle();
   if (src === 'mine' ? families : gfamilies) buildWheel(true);
+}
+function emptyDial() {
+  list = []; picked = -1;
+  nodes.forEach(el => el.remove()); nodes.clear();
+  $('dCount').textContent = '';
+  body.classList.remove('wopen');
+  body.classList.add('nolist');
+  layout();
+  draw();
+}
+function askFonts() {
+  emptyDial();
+  if (!('queryLocalFonts' in window)) return msg('This browser can’t read installed fonts. Open the page in Chrome or Edge, or use the Google tab.');
+  $('dMsg').innerHTML = '<strong>Upload your fonts</strong><br>Add the fonts installed on this computer to preview them here. '
+    + 'Your browser will ask first, and nothing leaves your computer.<br><button class="chip" id="dAllow">Allow access to my fonts</button>';
+  $('dMsg').hidden = false;
+  $('dAllow').addEventListener('click', async () => {
+    $('dMsg').hidden = true;
+    if (await ensureFonts()) { $('dMsg').hidden = true; buildWheel(true); }
+  });
 }
 document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => {
   src = b.dataset.src; store.set('src', src);
@@ -575,6 +599,7 @@ function layout() {
 }
 
 function buildWheel(jumpToCurrent) {
+  body.classList.remove('nolist');
   const q = $('dq').value.trim().toLowerCase();
   const all = src === 'google' ? gfamilies : families.filter(f => !f.sys).length ? families.filter(f => !f.sys) : families;
   list = all.filter(f => !q || f.name.toLowerCase().includes(q));
