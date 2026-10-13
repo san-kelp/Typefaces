@@ -618,6 +618,7 @@ function penFont(s) {
 
 // A short notice at the bottom, for when the editor can't open or something was copied.
 function penNote(t) {
+  if (pen?.say) return pen.say(t);                   // inside the editor the notice appears in the tooltip box
   document.querySelector('.penNote')?.remove();
   const n = Object.assign(document.createElement('p'), { className: 'penNote', textContent: t });
   document.body.append(n);
@@ -1113,10 +1114,22 @@ async function penOn() {
     tip.style.left = Math.max(12, Math.min(innerWidth - tip.offsetWidth - 12, r.left + r.width / 2 - tip.offsetWidth / 2)) + 'px';
     tip.style.bottom = innerHeight - top + 10 + 'px';
   };
+  let noteUntil = 0, noteTimer;
+  pen.say = t => {                                     // notices (copied, nothing selected...) use the same box, centred over the toolbar
+    clearTimeout(noteTimer);
+    noteUntil = Date.now() + 2200;
+    tip.textContent = t;
+    tip.hidden = false;
+    const br = bar.getBoundingClientRect();
+    tip.style.left = Math.max(12, Math.min(innerWidth - tip.offsetWidth - 12, br.left + br.width / 2 - tip.offsetWidth / 2)) + 'px';
+    tip.style.bottom = innerHeight - br.top + 10 + 'px';
+    noteTimer = setTimeout(() => { tip.hidden = true; }, 2200);
+  };
+  const hideTip = () => { if (Date.now() > noteUntil) tip.hidden = true; };
   bar.addEventListener('pointerover', showTip);
   bar.addEventListener('focusin', showTip);
-  bar.addEventListener('pointerleave', () => { tip.hidden = true; });
-  bar.addEventListener('focusout', () => { tip.hidden = true; });
+  bar.addEventListener('pointerleave', hideTip);
+  bar.addEventListener('focusout', hideTip);
   el.querySelector('.penBar').addEventListener('click', e => {
     const a = e.target.closest('[data-a]')?.dataset.a;
     if (a === 'reset') { penSave(); penReplace(copy(pen.orig)); }
