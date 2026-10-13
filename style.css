@@ -158,3 +158,4 @@ body.nolist #selBar,body.nolist #pointer{display:none}
 .penEd .dr{fill:none;stroke:var(--accent);stroke-width:1.5}
 .penEd.drawing>svg{cursor:crosshair}
 .penEd .hl{fill:none;stroke:var(--accent);stroke-width:3;opacity:.7;pointer-events:none}
+.penEd .handles *{pointer-events:none}

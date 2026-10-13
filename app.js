@@ -679,9 +679,12 @@ function penDraw() {
   const v = pen, { segs, sel, cur, drag } = pen, only = penOnly();
   const X = q => sx(v, q.x), Y = q => sy(v, q.y);
   const w = q => v.all ? 1 : !cur ? 0 : Math.max(0, Math.min(1, 1 - (Math.hypot(X(q) - cur.x, Y(q) - cur.y) - 30) / 40));   // fades 30 -> 70px
-  let d = '', h = '';
+  let d = '', h = '', prevIdx = -1;
+  const selA = j => j >= 0 && (sel.has(j + ':p') || (pen.twin[j] !== undefined && sel.has(pen.twin[j] + ':p')));
   segs.forEach((s, i) => {
     if (s.t === 'Z') return (d += 'Z');
+    const pj = prevIdx;
+    prevIdx = i;
     d += s.t === 'C' ? `C${X(s.c1)} ${Y(s.c1)} ${X(s.c2)} ${Y(s.c2)} ${X(s.p)} ${Y(s.p)}` : `${s.t}${X(s.p)} ${Y(s.p)}`;
     if (only != null && s.g !== only) return;
     const from = prevPoint(segs, i);
@@ -692,7 +695,7 @@ function penDraw() {
       h += k === 'p' ? `<rect class="h${on ? ' on' : ''}" x="${X(q) - 5}" y="${Y(q) - 5}" width="10" height="10" opacity="${o}"/>`
                      : `<circle class="h${on ? ' on' : ''}" cx="${X(q)}" cy="${Y(q)}" r="5" opacity="${o}"/>`;
     };
-    if (s.t === 'C') { mark('c1', s.c1, w(s.c1), from); mark('c2', s.c2, w(s.c2), s.p); }
+    if (s.t === 'C') { mark('c1', s.c1, selA(pj) ? 1 : w(s.c1), from); mark('c2', s.c2, selA(i) ? 1 : w(s.c2), s.p); }
     mark('p', s.p, w(s.p));
   });
   if (cur && !drag && !pen.draft) {                      // the outline a press would bend (or add a point to)
@@ -1135,6 +1138,13 @@ async function penOn() {
     pen.cur = at(e);
     if (e.button === 1 || e.button === 2 || pen.space) { pen.drag = { kind: 'pan' }; return; }
     if (e.button) return;
+    const now = performance.now(), L = pen.last;
+    pen.last = { t: now, x: e.clientX, y: e.clientY };
+    if (!pen.draw && L && now - L.t < 400 && Math.hypot(L.x - e.clientX, L.y - e.clientY) < 6) {
+      pen.last = null;
+      pen.drag = null;
+      return onDouble(e);
+    }
     const onPoint = pen.draw && !pen.draft && hit(pen.cur, e.altKey ? 3 : 7);       // pen mode on an existing point = edit it
     if (pen.draw && !onPoint) {                         // pen mode: click places a point, drag pulls out its handles
       const D = pen.draft?.pts || [];
@@ -1214,12 +1224,12 @@ async function penOn() {
   };
   svg.addEventListener('pointerup', up);
   svg.addEventListener('pointercancel', up);
-  svg.addEventListener('dblclick', e => {
-    if (pen.draw) return;
+  // Double-click: on a point it rounds or sharpens it; on an outline it adds a point (Alt: flips line <-> curve).
+  function onDouble(e) {
     const q = at(e), h = hit(q, e.altKey ? 3 : 7);
     if (h && h[0].endsWith(':p')) penSmooth(+h[0].split(':')[0]);
     else if (!h) (e.altKey ? penFlip : penInsert)(q);
-  });
+  }
   svg.addEventListener('contextmenu', e => e.preventDefault());
   svg.addEventListener('pointerleave', () => { if (pen && !pen.drag) { pen.cur = null; penDraw(); } });
   penDraw();
