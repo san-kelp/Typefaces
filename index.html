@@ -74,14 +74,21 @@ button,input{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .penEd .rl rect{fill:var(--chip)}
 .penEd .rl line{stroke:var(--mute);stroke-width:1}
 .penEd .rl .cur{stroke:var(--accent)}
-.penEd.ruled .penBar{top:42px}
-.penBar{position:absolute;left:24px;top:24px;right:24px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.penBar{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);width:max-content;max-width:calc(100vw - 32px);display:flex;flex-wrap:wrap;justify-content:center;gap:10px;align-items:center}
 .penBar .chip{height:40px;line-height:40px;padding:0 18px;font-size:14px}
 .penBar .chip.icon{width:40px;padding:0}
 .penBar .chip:disabled{opacity:.35;pointer-events:none}
 .penBar .zoom{font-size:13px;color:var(--mute);min-width:48px}
 .penNote{position:fixed;left:50%;bottom:64px;transform:translateX(-50%);z-index:101;font-size:14px;opacity:.6;white-space:nowrap}
-.penHint{position:absolute;left:50%;bottom:32px;transform:translateX(-50%);font-size:14px;opacity:.4;white-space:nowrap}
+.penKeys{position:absolute;left:36px;top:36px;width:260px;padding:12px 14px;border-radius:14px;background:var(--chip);box-shadow:var(--rec);font-size:13px;line-height:1.35;color:var(--fg)}
+.penKeys summary{cursor:pointer;font-weight:600;list-style:none}
+.penKeys summary::after{content:' ▾';color:var(--mute)}
+.penKeys:not([open]) summary::after{content:' ▸'}
+.penKeys p{display:flex;justify-content:space-between;gap:12px;margin-top:8px}
+.penKeys kbd{font:inherit;font-weight:600;white-space:nowrap}
+.penKeys span{color:var(--mute);text-align:right}
+.penKeys .note{display:block;margin-top:12px;padding-top:10px;border-top:1px solid var(--dim);color:var(--mute)}
+.penKeys .note b{color:var(--fg)}
 .pill{display:flex;gap:14px;opacity:0;pointer-events:none;transition:opacity .4s}
 .typed .pill{opacity:.35;pointer-events:auto}
 .typed .stage:hover .pill,.typed .pill:focus-within,.drawer-open .pill{opacity:1}
@@ -1104,7 +1111,7 @@ async function penOn() {
     + btn('save', 'Download SVG', 'M12 4v11m-5-5 5 5 5-5M5 19h14')
     + btn('clip', 'Copy SVG', 'M9 9h11v11H9zM5 15V5h10')
     + '<span class="zoom"></span></div>'
-    + '<p class="penHint">Scroll to zoom · Space + drag to pan · Shift-click to select more · Double-click a curve to add a point, a point to round or sharpen it · Del removes · Esc closes</p>';
+    + '<details class="penKeys" open><summary>Shortcuts</summary><p><kbd>Scroll</kbd><span>Zoom in and out</span></p><p><kbd>Space + drag</kbd><span>Pan the view</span></p><p><kbd>Drag a point</kbd><span>Move it</span></p><p><kbd>Shift + click</kbd><span>Add to the selection</span></p><p><kbd>Drag on empty space</kbd><span>Select a group</span></p><p><kbd>Double-click a curve</kbd><span>Add a point</span></p><p><kbd>Double-click a point</kbd><span>Round it, or make it sharp</span></p><p><kbd>Delete</kbd><span>Remove the selected point</span></p><p><kbd>Arrow keys</kbd><span>Nudge (Shift = 1 unit)</span></p><p><kbd>Ctrl + Z</kbd><span>Undo (Shift for redo)</span></p><p><kbd>Esc</kbd><span>Close the editor</span></p><p class="note"><b>Focus</b> (the target button): shows the points of one letter only, the one you are working in, so neighbouring letters stay out of the way.</p></details>';
   document.body.append(el);
 
   let x1 = 1e9, y1 = 1e9, x2 = -1e9, y2 = -1e9;
@@ -1136,6 +1143,10 @@ async function penOn() {
   addEventListener('keydown', pen.keys);
   addEventListener('keyup', pen.keys);
 
+  // The shortcuts card starts open so the tools are obvious, and tucks itself away on first use (the summary reopens it).
+  const keys = el.querySelector('.penKeys'), tuck = () => { keys.open = false; };
+  el.querySelector('svg').addEventListener('pointerdown', tuck, { once: true });
+  el.addEventListener('wheel', tuck, { once: true, passive: true });
   const toggle = (key, id) => { pen[key] = !pen[key]; el.querySelector('#' + id).setAttribute('aria-pressed', pen[key]); penDraw(); };
   el.querySelector('.penBar').addEventListener('click', e => {
     const a = e.target.closest('[data-a]')?.dataset.a;
