@@ -695,6 +695,19 @@ function penDraw() {
     if (s.t === 'C') { mark('c1', s.c1, w(s.c1), from); mark('c2', s.c2, w(s.c2), s.p); }
     mark('p', s.p, w(s.p));
   });
+  if (pen.draft?.pts.length) {                           // the shape being drawn, with a rubber band to the cursor
+    const D = pen.draft.pts, last = D[D.length - 1], cw = cur && pt((cur.x - v.tx) / v.z, (cur.y - v.ty) / v.z);
+    const seg = (a, b) => `C${X(a.hout || a.p)} ${Y(a.hout || a.p)} ${X(b.hin || b.p)} ${Y(b.hin || b.p)} ${X(b.p)} ${Y(b.p)}`;
+    let dd = `M${X(D[0].p)} ${Y(D[0].p)}`;
+    for (let i = 1; i < D.length; i++) dd += seg(D[i - 1], D[i]);
+    if (cw && !drag) dd += seg(last, { p: cw });
+    h += `<path class="dr" d="${dd}"/>`;
+    const close = cw && D.length > 2 && Math.hypot(X(D[0].p) - cur.x, Y(D[0].p) - cur.y) < 10;
+    D.forEach((q, i) => {
+      for (const k of ['hin', 'hout']) if (q[k]) h += `<line class="ln" x1="${X(q.p)}" y1="${Y(q.p)}" x2="${X(q[k])}" y2="${Y(q[k])}"/><circle class="h" cx="${X(q[k])}" cy="${Y(q[k])}" r="4"/>`;
+      h += `<rect class="h${i === 0 && close ? ' on' : ''}" x="${X(q.p) - 5}" y="${Y(q.p) - 5}" width="10" height="10"/>`;
+    });
+  }
   if (drag?.kind === 'marquee') h += `<rect class="mq" x="${Math.min(drag.o.x, cur.x)}" y="${Math.min(drag.o.y, cur.y)}" width="${Math.abs(cur.x - drag.o.x)}" height="${Math.abs(cur.y - drag.o.y)}"/>`;
   const el = pen.el;
   el.querySelector('.glyphs').setAttribute('d', d);
@@ -936,6 +949,45 @@ function penSvg() {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${r(x1 - pad)} ${r(y1 - pad)} ${r(x2 - x1 + 2 * pad)} ${r(y2 - y1 + 2 * pad)}"><path d="${d}"/></svg>\n`;
 }
 
+// Close the drawn shape and add it to the letter nearest its first point, so it moves, bends and exports like the rest.
+function penFinishDraft() {
+  const D = pen.draft;
+  pen.draft = null;
+  if (!D || D.pts.length < 3) return penDraw();
+  let g = 0, best = 1e9;
+  for (const [k, q] of penPoints(null)) {
+    const d = dist(q, D.pts[0].p);
+    if (d < best) { best = d; g = pen.segs[+k.split(':')[0]].g; }
+  }
+  penSave();
+  const out = [{ t: 'M', p: copy(D.pts[0].p), g }], n = D.pts.length;
+  for (let i = 1; i <= n; i++) {                    // the last segment runs back to the start
+    const a = D.pts[i - 1], b = D.pts[i % n];
+    out.push(a.hout || b.hin ? { t: 'C', c1: copy(a.hout || a.p), c2: copy(b.hin || b.p), p: copy(b.p), g } : { t: 'L', p: copy(b.p), g });
+  }
+  out.push({ t: 'Z', g });
+  penReplace(pen.segs.concat(out));
+}
+
+// Flip a shape's direction. With the fill rule used here that is what turns a shape into a hole (or back).
+function penReverse() {
+  const { cs, where } = penParse(pen.segs), pick = new Set();
+  for (const k of pen.sel) { const w = where[+k.split(':')[0]]; if (w) pick.add(w[0]); }
+  if (!pick.size && cs.length) pick.add(cs[cs.length - 1]);      // nothing selected: the one drawn last
+  if (!pick.size) return;
+  penSave();
+  for (const c of pick) {
+    const m = c.nodes.length, nodes = [], arcs = [];
+    for (let k = 0; k < m; k++) {
+      const j = (m - k) % m, a = c.arcs[(j - 1 + m) % m];
+      nodes.push(c.nodes[j]);
+      arcs.push(a.t === 'C' ? { t: 'C', c1: a.c2, c2: a.c1 } : { t: 'L' });
+    }
+    c.nodes = nodes; c.arcs = arcs;
+  }
+  penReplace(penBuild(cs));
+}
+
 /* ----- Opening ----- */
 
 async function penOn() {
@@ -969,6 +1021,8 @@ async function penOn() {
   el.innerHTML = '<svg><line class="base" x1="0" x2="100%"/><path class="glyphs"/><g class="handles"/><g class="rl"/></svg>'
     + '<div class="penBar"><button class="chip" data-a="done">Done</button><button class="chip" data-a="reset">Reset</button>'
     + '<button class="chip" data-a="fit">Fit</button>'
+    + btn('draw', 'Draw a new shape (P)', 'M4 20l4-1 11-11-3-3L5 16zM14 6l3 3')
+    + btn('reverse', 'Reverse the direction of the selected shape, or the last one drawn (turns it into a hole)', 'M7 7h11l-3-3M17 17H6l3 3')
     + btn('undo', 'Undo (Ctrl+Z)', 'M9 14 4 9l5-5M4 9h10a6 6 0 0 1 0 12h-4')
     + btn('redo', 'Redo (Ctrl+Shift+Z)', 'M15 14l5-5-5-5M20 9H10a6 6 0 0 0 0 12h4')
     + btn('ruler', 'Rulers', 'M3 8h18v8H3zM7 8v3M11 8v4M15 8v3M19 8v4')
@@ -978,7 +1032,7 @@ async function penOn() {
     + btn('save', 'Download SVG', 'M12 4v11m-5-5 5 5 5-5M5 19h14')
     + btn('clip', 'Copy SVG', 'M9 9h11v11H9zM5 15V5h10')
     + '<span class="zoom"></span></div>'
-    + '<details class="penKeys" open><summary>Shortcuts</summary><p><kbd>Scroll</kbd><span>Zoom in and out</span></p><p><kbd>Space + drag</kbd><span>Pan the view</span></p><p><kbd>Drag a point</kbd><span>Move it</span></p><p><kbd>Drag a curve</kbd><span>Bend it</span></p><p><kbd>Alt + drag a handle</kbd><span>Move it alone</span></p><p><kbd>Shift + click</kbd><span>Add to the selection</span></p><p><kbd>Drag on empty space</kbd><span>Select a group</span></p><p><kbd>Double-click a curve</kbd><span>Add a point</span></p><p><kbd>Double-click a point</kbd><span>Round it, or make it sharp</span></p><p><kbd>Alt + double-click</kbd><span>Line ⇄ curve</span></p><p><kbd>Delete</kbd><span>Remove the selected point</span></p><p><kbd>Arrow keys</kbd><span>Nudge (Shift = 1 unit)</span></p><p><kbd>Ctrl + Z</kbd><span>Undo (Shift for redo)</span></p><p><kbd>Esc</kbd><span>Close the editor</span></p><p class="note"><b>Focus</b> (the target button): shows the points of one letter only, the one you are working in, so neighbouring letters stay out of the way. <b>Handles</b> shows every handle at once.</p></details>';
+    + '<details class="penKeys" open><summary>Shortcuts</summary><p><kbd>Scroll</kbd><span>Zoom in and out</span></p><p><kbd>Space + drag</kbd><span>Pan the view</span></p><p><kbd>Drag a point</kbd><span>Move it</span></p><p><kbd>Drag a curve</kbd><span>Bend it</span></p><p><kbd>Alt + drag a handle</kbd><span>Move it alone</span></p><p><kbd>Shift + click</kbd><span>Add to the selection</span></p><p><kbd>Drag on empty space</kbd><span>Select a group</span></p><p><kbd>Double-click a curve</kbd><span>Add a point</span></p><p><kbd>Double-click a point</kbd><span>Round it, or make it sharp</span></p><p><kbd>Alt + double-click</kbd><span>Line ⇄ curve</span></p><p><kbd>Delete</kbd><span>Remove the selected point</span></p><p><kbd>Arrow keys</kbd><span>Nudge (Shift = 1 unit)</span></p><p><kbd>Ctrl + Z</kbd><span>Undo (Shift for redo)</span></p><p><kbd>P</kbd><span>Pen: draw a new shape</span></p><p><kbd>Click, or click + drag</kbd><span>In pen mode: a point, or a curve</span></p><p><kbd>Enter</kbd><span>Close the shape (Esc cancels)</span></p><p><kbd>Esc</kbd><span>Close the editor</span></p><p class="note"><b>Focus</b> (the target button): shows the points of one letter only, the one you are working in, so neighbouring letters stay out of the way. <b>Handles</b> shows every handle at once. <b>Reverse</b> flips a shape’s direction, which turns a shape you drew into a hole.</p></details>';
   document.body.append(el);
 
   let x1 = 1e9, y1 = 1e9, x2 = -1e9, y2 = -1e9;
@@ -987,14 +1041,28 @@ async function penOn() {
   const fit = Math.min(W * .8 / Math.max(1, x2 - x1), H * .5 / Math.max(1, y2 - y1));
   const home = { z: fit, tx: W / 2 - fit * (x1 + x2) / 2, ty: H / 2 - fit * (y1 + y2) / 2 };
   pen = { segs, twin: penTwins(segs), sel: new Set(), cur: null, drag: null, orig: copy(segs), el, fit, ...home,
-          space: false, undo: [], redo: [], snap: false, ruler: false, focus: false, all: false };
+          space: false, undo: [], redo: [], snap: false, ruler: false, focus: false, all: false, draw: false, draft: null };
 
+  const setDraw = on => {
+    pen.draw = on; pen.draft = null; pen.sel = new Set();
+    el.classList.toggle('drawing', on);
+    el.querySelector('#draw').setAttribute('aria-pressed', on);
+    penDraw();
+  };
   const arrows = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
   pen.keys = e => {
     if (e.code === 'Space') { pen.space = e.type === 'keydown'; e.preventDefault(); return; }
     if (e.type !== 'keydown') return;
     const mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
-    if (k === 'escape') penOff();
+    if (k === 'escape') { if (pen.draft) { pen.draft = null; penDraw(); } else if (pen.draw) setDraw(false); else penOff(); }
+    else if (k === 'p' && !mod) setDraw(!pen.draw);
+    else if (k === 'enter' && pen.draft) { e.preventDefault(); penFinishDraft(); }
+    else if (k === 'backspace' && pen.draft) {          // take back the last point
+      e.preventDefault();
+      pen.draft.pts.pop();
+      if (!pen.draft.pts.length) pen.draft = null;
+      penDraw();
+    }
     else if (mod && k === 'z') { e.preventDefault(); e.shiftKey ? penRestore(pen.redo, pen.undo) : penRestore(pen.undo, pen.redo); }
     else if (mod && k === 'y') { e.preventDefault(); penRestore(pen.redo, pen.undo); }
     else if (mod && k === 'a') { e.preventDefault(); pen.sel = new Set(penPoints(penOnly()).map(([key]) => key)); penDraw(); }
@@ -1020,6 +1088,8 @@ async function penOn() {
     if (a === 'done') penOff();
     else if (a === 'reset') { penSave(); penReplace(copy(pen.orig)); }
     else if (a === 'fit') { Object.assign(pen, home); penDraw(); }
+    else if (a === 'draw') setDraw(!pen.draw);
+    else if (a === 'reverse') penReverse();
     else if (a === 'undo') penRestore(pen.undo, pen.redo);
     else if (a === 'redo') penRestore(pen.redo, pen.undo);
     else if (a === 'ruler') toggle('ruler', 'ruler');
@@ -1051,6 +1121,17 @@ async function penOn() {
     pen.cur = at(e);
     if (e.button === 1 || e.button === 2 || pen.space) { pen.drag = { kind: 'pan' }; return; }
     if (e.button) return;
+    if (pen.draw) {                                     // pen mode: click places a point, drag pulls out its handles
+      const D = pen.draft?.pts || [];
+      if (D.length > 2 && Math.hypot(sx(pen, D[0].p.x) - pen.cur.x, sy(pen, D[0].p.y) - pen.cur.y) < 10) return penFinishDraft();
+      let w = world(pen.cur);
+      const st = pen.snap ? pen.st : 0;
+      if (st) w = pt(Math.round(w.x / st) * st, Math.round(w.y / st) * st);
+      const q = { p: w, hin: null, hout: null };
+      (pen.draft ||= { pts: [] }).pts.push(q);
+      pen.drag = { kind: 'draw', q };
+      return penDraw();
+    }
     const h = hit(pen.cur);
     if (h) {
       const k = h[0];
@@ -1091,6 +1172,12 @@ async function penOn() {
       }
       const k = 1 / (3 * g.t * (1 - g.t)) / pen.z;           // both handles move so the grabbed point follows the cursor
       sg.c1.x += dx * k; sg.c1.y += dy * k; sg.c2.x += dx * k; sg.c2.y += dy * k;
+    } else if (pen.drag?.kind === 'draw') {
+      const { q } = pen.drag, w = world(pen.cur);
+      if (Math.hypot(w.x - q.p.x, w.y - q.p.y) * pen.z > 3) {
+        q.hout = pt(w.x, w.y);                          // the handle follows the cursor; its twin mirrors it (Alt: no twin)
+        q.hin = e.altKey ? null : pt(2 * q.p.x - w.x, 2 * q.p.y - w.y);
+      }
     } else if (pen.drag?.kind === 'pan') { pen.tx += dx; pen.ty += dy; }
     penDraw();
   });
@@ -1107,6 +1194,7 @@ async function penOn() {
   svg.addEventListener('pointerup', up);
   svg.addEventListener('pointercancel', up);
   svg.addEventListener('dblclick', e => {
+    if (pen.draw) return;
     const q = at(e), h = hit(q);
     if (h && h[0].endsWith(':p')) penSmooth(+h[0].split(':')[0]);
     else if (!h) (e.altKey ? penFlip : penInsert)(q);
