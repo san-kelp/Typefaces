@@ -74,13 +74,13 @@ button,input{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .penEd .rl rect{fill:var(--chip)}
 .penEd .rl line{stroke:var(--mute);stroke-width:1}
 .penEd .rl .cur{stroke:var(--accent)}
-.penBar{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);width:max-content;max-width:calc(100vw - 32px);display:flex;flex-wrap:wrap;justify-content:center;gap:10px;align-items:center}
+.penBar{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);width:max-content;max-width:calc(100vw - 32px);display:flex;flex-wrap:wrap;justify-content:center;gap:10px;align-items:center;padding:12px;border-radius:6px;background:var(--obj-bg);box-shadow:var(--obj)}
 .penBar .chip{height:40px;line-height:40px;padding:0 18px;font-size:14px}
 .penBar .chip.icon{width:40px;padding:0}
 .penBar .chip:disabled{opacity:.35;pointer-events:none}
 .penBar .zoom{font-size:13px;color:var(--mute);min-width:48px}
 .penNote{position:fixed;left:50%;bottom:64px;transform:translateX(-50%);z-index:101;font-size:14px;opacity:.6;white-space:nowrap}
-.penKeys{position:absolute;left:36px;top:36px;width:260px;padding:12px 14px;border-radius:14px;background:var(--chip);box-shadow:var(--rec);font-size:13px;line-height:1.35;color:var(--fg)}
+.penKeys{position:absolute;left:36px;top:36px;width:260px;padding:14px 16px;border-radius:6px;background:var(--obj-bg);box-shadow:var(--obj);font-size:13px;line-height:1.35;color:var(--fg)}
 .penKeys summary{cursor:pointer;font-weight:600;list-style:none}
 .penKeys summary::after{content:' ▾';color:var(--mute)}
 .penKeys:not([open]) summary::after{content:' ▸'}
