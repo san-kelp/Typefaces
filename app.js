@@ -835,6 +835,12 @@ function penSegAt(at, r) {
   return best;
 }
 
+// For anchor j: the segment arriving at it (a) and leaving it (b), following a closed contour across its seam.
+function penLinks(j) {
+  const { segs, twin } = pen, isM = segs[j].t === 'M', tw = twin[j];
+  return { a: isM ? tw : j, b: isM ? j + 1 : (tw !== undefined && tw < j ? tw + 1 : j + 1) };
+}
+
 // Double-click a curve to add a point there, keeping its shape (de Casteljau split).
 function penInsert(at) {
   const best = penSegAt(at, 10);
@@ -856,6 +862,27 @@ function penInsertAt(best) {
   penReplace(out);
   pen.sel = new Set([best.i + ':p']);
   return best.i + ':p';
+}
+
+// Double-click an anchor: with handles -> corner (handles retract); without -> smooth (handles line up with its neighbours).
+function penSmooth(i) {
+  const { segs } = pen, P = segs[i].p, { a, b } = penLinks(i);
+  if (a === undefined || !segs[b] || segs[b].t === 'Z') return;
+  const A = prevPoint(segs, a), B = segs[b].p;
+  penSave();
+  const has = (segs[a].t === 'C' && dist(segs[a].c2, P) > .01) || (segs[b].t === 'C' && dist(segs[b].c1, P) > .01);
+  const toC = (j, c1, c2) => { segs[j] = { t: 'C', c1, c2, p: segs[j].p, g: segs[j].g }; };
+  if (has) {
+    if (segs[a].t === 'C') segs[a].c2 = copy(P); else toC(a, copy(A), copy(P));
+    if (segs[b].t === 'C') segs[b].c1 = copy(P); else toC(b, copy(P), copy(B));
+  } else {
+    const len = dist(A, B) || 1, d = pt((B.x - A.x) / len, (B.y - A.y) / len), li = dist(P, A) / 3, lo = dist(P, B) / 3;
+    const hin = pt(P.x - d.x * li, P.y - d.y * li), hout = pt(P.x + d.x * lo, P.y + d.y * lo);
+    if (segs[a].t === 'C') segs[a].c2 = hin; else toC(a, copy(A), hin);
+    if (segs[b].t === 'C') segs[b].c1 = hout; else toC(b, hout, copy(B));
+  }
+  pen.sel = new Set([i + ':p']);
+  penDraw();
 }
 
 function penSvg() {
@@ -1007,7 +1034,7 @@ async function penOn() {
     + btn('clip', 'Copy SVG', 'M9 9h11v11H9zM5 15V5h10')
     + btn('help', 'Shortcuts (?)', 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM9.7 9.4a2.4 2.4 0 1 1 3.4 2.2c-.7.4-1.1.9-1.1 1.6M12 16.8v.1')
     + '<span class="zoom"></span></div>'
-    + '<aside class="penKeys open"><header><b>Shortcuts</b><button class="chip icon" data-a="help" title="Close">×</button></header><p><kbd>Scroll</kbd><span>Zoom in and out</span></p><p><kbd>Space + drag</kbd><span>Pan the view</span></p><p><kbd>Drag a point</kbd><span>Move it</span></p><p><kbd>Drag inside a shape</kbd><span>Select and move all of it</span></p><p><kbd>Drag a curve</kbd><span>Bend it (the highlight shows which)</span></p><p><kbd>Shift + click</kbd><span>Add to the selection</span></p><p><kbd>Drag on empty space</kbd><span>Select a group</span></p><p><kbd>Double-click a curve</kbd><span>Add a point</span></p><p><kbd>Delete</kbd><span>Remove the selected point</span></p><p><kbd>Ctrl + C / X / V</kbd><span>Copy, cut, paste a whole shape</span></p><p><kbd>Ctrl + D</kbd><span>Duplicate it (Ctrl + Shift + V pastes in place)</span></p><p><kbd>Arrow keys</kbd><span>Nudge (Shift = 1 unit)</span></p><p><kbd>Ctrl + Z</kbd><span>Undo (Shift for redo)</span></p><p><kbd>P</kbd><span>Pen: draw a new shape</span></p><p><kbd>Click an outline</kbd><span>In pen mode: add a point to it</span></p><p><kbd>Click, or click + drag</kbd><span>In pen mode, in empty space: start a shape</span></p><p><kbd>Enter</kbd><span>Close the shape (Esc cancels)</span></p><p><kbd>Esc</kbd><span>Close the editor</span></p></aside>';
+    + '<aside class="penKeys open"><header><b>Shortcuts</b><button class="chip icon" data-a="help" title="Close">×</button></header><p><kbd>Scroll</kbd><span>Zoom in and out</span></p><p><kbd>Space + drag</kbd><span>Pan the view</span></p><p><kbd>Drag a point</kbd><span>Move it</span></p><p><kbd>Drag inside a shape</kbd><span>Select and move all of it</span></p><p><kbd>Double-click a point</kbd><span>Round it (lines become curves), or make it sharp</span></p><p><kbd>Drag a curve</kbd><span>Bend it (the highlight shows which)</span></p><p><kbd>Shift + click</kbd><span>Add to the selection</span></p><p><kbd>Drag on empty space</kbd><span>Select a group</span></p><p><kbd>Double-click a curve</kbd><span>Add a point</span></p><p><kbd>Delete</kbd><span>Remove the selected point</span></p><p><kbd>Ctrl + C / X / V</kbd><span>Copy, cut, paste a whole shape</span></p><p><kbd>Ctrl + D</kbd><span>Duplicate it (Ctrl + Shift + V pastes in place)</span></p><p><kbd>Arrow keys</kbd><span>Nudge (Shift = 1 unit)</span></p><p><kbd>Ctrl + Z</kbd><span>Undo (Shift for redo)</span></p><p><kbd>P</kbd><span>Pen: draw a new shape</span></p><p><kbd>Click an outline</kbd><span>In pen mode: add a point to it</span></p><p><kbd>Click, or click + drag</kbd><span>In pen mode, in empty space: start a shape</span></p><p><kbd>Enter</kbd><span>Close the shape (Esc cancels)</span></p><p><kbd>Esc</kbd><span>Close the editor</span></p></aside>';
   document.body.append(el);
 
   let x1 = 1e9, y1 = 1e9, x2 = -1e9, y2 = -1e9;
@@ -1194,10 +1221,11 @@ async function penOn() {
   };
   svg.addEventListener('pointerup', up);
   svg.addEventListener('pointercancel', up);
-  // Double-click an outline to add a point there.
+  // Double-click a point to round or sharpen it (lines <-> curves around it); on an outline, to add a point.
   function onDouble(e) {
-    const q = at(e);
-    if (!hit(q)) penInsert(q);
+    const q = at(e), h = hit(q);
+    if (h && h[0].endsWith(':p')) penSmooth(+h[0].split(':')[0]);
+    else if (!h) penInsert(q);
   }
   svg.addEventListener('contextmenu', e => e.preventDefault());
   svg.addEventListener('pointerleave', () => { if (pen && !pen.drag) { pen.cur = null; penDraw(); } });
