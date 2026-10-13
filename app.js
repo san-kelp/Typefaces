@@ -700,7 +700,8 @@ function penDraw() {
   });
   if (cur && !drag && !pen.draft) {                      // the outline a press would bend (or add a point to)
     const near = penPoints(only).some(([, q]) => Math.hypot(X(q) - cur.x, Y(q) - cur.y) <= 7);
-    const sg = !near && penSegAt(cur, only, 8);
+    const shp = penShapeAt(cur), sg = !near && !(shp && sel.has(shp.keys[0])) && penSegAt(cur, only, 6);
+    v.el.querySelector('svg').style.cursor = !near && !sg && !pen.draw && shp ? 'move' : '';
     if (sg) {
       const s = segs[sg.i], a = prevPoint(segs, sg.i);
       h = `<path class="hl" d="M${X(a)} ${Y(a)}${s.t === 'C' ? `C${X(s.c1)} ${Y(s.c1)} ${X(s.c2)} ${Y(s.c2)} ${X(s.p)} ${Y(s.p)}` : `L${X(s.p)} ${Y(s.p)}`}"/>` + h;
@@ -988,6 +989,43 @@ function penReverse() {
   penReplace(penBuild(cs));
 }
 
+// The shape (contour) under a screen point: { keys: anchor keys, first: index of its first segment }. Smallest wins,
+// so pointing into a counter picks the counter rather than the letter around it.
+function penShapeAt(at) {
+  const { segs } = pen, only = penOnly();
+  let best = null, start = -1;
+  segs.forEach((s, i) => {
+    if (s.t === 'M') start = i;
+    if (s.t !== 'Z' || start < 0) return;
+    const poly = [];
+    let prev = null;
+    for (let j = start; j < i; j++) {
+      const q = segs[j];
+      if (q.t === 'C' && prev) for (let k = 1; k <= 8; k++) {
+        const t = k / 8, u = 1 - t;
+        poly.push([sx(pen, u*u*u*prev.x + 3*u*u*t*q.c1.x + 3*u*t*t*q.c2.x + t*t*t*q.p.x), sy(pen, u*u*u*prev.y + 3*u*u*t*q.c1.y + 3*u*t*t*q.c2.y + t*t*t*q.p.y)]);
+      } else poly.push([sx(pen, q.p.x), sy(pen, q.p.y)]);
+      prev = q.p;
+    }
+    const first = start;
+    start = -1;
+    if (only != null && segs[first].g !== only) return;
+    let inside = false, area = 0;
+    for (let a = 0, b = poly.length - 1; a < poly.length; b = a++) {
+      const [x1, y1] = poly[a], [x2, y2] = poly[b];
+      if ((y1 > at.y) !== (y2 > at.y) && at.x < (x2 - x1) * (at.y - y1) / (y2 - y1) + x1) inside = !inside;
+      area += x2 * y1 - x1 * y2;
+    }
+    area = Math.abs(area) / 2;
+    if (inside && (!best || area <= best.area)) {      // ties go to the later (pasted) shape
+      const keys = [];
+      for (let j = first; j < i; j++) keys.push(j + ':p');
+      best = { keys, first, area };
+    }
+  });
+  return best;
+}
+
 // Copy / cut / paste whole shapes: any shape with a selected point. The clipboard outlives the editor,
 // so a shape copied from one letter or word can be pasted into another.
 var penClip = null;
@@ -1070,7 +1108,7 @@ async function penOn() {
     + btn('save', 'Download SVG', 'M12 4v11m-5-5 5 5 5-5M5 19h14')
     + btn('clip', 'Copy SVG', 'M9 9h11v11H9zM5 15V5h10')
     + '<span class="zoom"></span></div>'
-    + '<details class="penKeys" open><summary>Shortcuts</summary><p><kbd>Scroll</kbd><span>Zoom in and out</span></p><p><kbd>Space + drag</kbd><span>Pan the view</span></p><p><kbd>Drag a point</kbd><span>Move it</span></p><p><kbd>Drag a curve</kbd><span>Bend it (the highlight shows which)</span></p><p><kbd>Alt + drag a handle</kbd><span>Move it alone</span></p><p><kbd>Shift + click</kbd><span>Add to the selection</span></p><p><kbd>Drag on empty space</kbd><span>Select a group</span></p><p><kbd>Double-click a curve</kbd><span>Add a point</span></p><p><kbd>Double-click a point</kbd><span>Round it, or make it sharp</span></p><p><kbd>Delete</kbd><span>Remove the selected point</span></p><p><kbd>Ctrl + C / X / V</kbd><span>Copy, cut, paste a whole shape</span></p><p><kbd>Ctrl + D</kbd><span>Duplicate it (Ctrl + Shift + V pastes in place)</span></p><p><kbd>Arrow keys</kbd><span>Nudge (Shift = 1 unit)</span></p><p><kbd>Ctrl + Z</kbd><span>Undo (Shift for redo)</span></p><p><kbd>P</kbd><span>Pen: draw a new shape</span></p><p><kbd>Click an outline</kbd><span>In pen mode: add a point to it</span></p><p><kbd>Click, or click + drag</kbd><span>In pen mode, in empty space: start a shape</span></p><p><kbd>Enter</kbd><span>Close the shape (Esc cancels)</span></p><p><kbd>Esc</kbd><span>Close the editor</span></p><p class="note"><b>Focus</b> (the target button): shows the points of one letter only, the one you are working in, so neighbouring letters stay out of the way. <b>Handles</b> shows every handle at once. <b>Reverse</b> flips a shape’s direction, which turns a shape you drew into a hole.</p></details>';
+    + '<details class="penKeys" open><summary>Shortcuts</summary><p><kbd>Scroll</kbd><span>Zoom in and out</span></p><p><kbd>Space + drag</kbd><span>Pan the view</span></p><p><kbd>Drag a point</kbd><span>Move it</span></p><p><kbd>Drag inside a shape</kbd><span>Select and move all of it</span></p><p><kbd>Drag a curve</kbd><span>Bend it (the highlight shows which)</span></p><p><kbd>Alt + drag a handle</kbd><span>Move it alone</span></p><p><kbd>Shift + click</kbd><span>Add to the selection</span></p><p><kbd>Drag on empty space</kbd><span>Select a group</span></p><p><kbd>Double-click a curve</kbd><span>Add a point</span></p><p><kbd>Double-click a point</kbd><span>Round it, or make it sharp</span></p><p><kbd>Delete</kbd><span>Remove the selected point</span></p><p><kbd>Ctrl + C / X / V</kbd><span>Copy, cut, paste a whole shape</span></p><p><kbd>Ctrl + D</kbd><span>Duplicate it (Ctrl + Shift + V pastes in place)</span></p><p><kbd>Arrow keys</kbd><span>Nudge (Shift = 1 unit)</span></p><p><kbd>Ctrl + Z</kbd><span>Undo (Shift for redo)</span></p><p><kbd>P</kbd><span>Pen: draw a new shape</span></p><p><kbd>Click an outline</kbd><span>In pen mode: add a point to it</span></p><p><kbd>Click, or click + drag</kbd><span>In pen mode, in empty space: start a shape</span></p><p><kbd>Enter</kbd><span>Close the shape (Esc cancels)</span></p><p><kbd>Esc</kbd><span>Close the editor</span></p><p class="note"><b>Focus</b> (the target button): shows the points of one letter only, the one you are working in, so neighbouring letters stay out of the way. <b>Handles</b> shows every handle at once. <b>Reverse</b> flips a shape’s direction, which turns a shape you drew into a hole.</p></details>';
   document.body.append(el);
 
   let x1 = 1e9, y1 = 1e9, x2 = -1e9, y2 = -1e9;
@@ -1200,10 +1238,20 @@ async function penOn() {
       // The snapshot is only kept if the point actually moves. A lone smooth handle drags its partner round with it.
       pen.drag = { kind: 'move', q, want: pt(q.x, q.y), snap: copy(pen.segs), mirror: pen.sel.size === 1 ? penPartner(k) : null };
     } else {
-      if (!e.shiftKey) pen.sel = new Set();
-      const sg = penSegAt(pen.cur, penOnly(), 8);
-      pen.drag = sg ? { kind: 'curve', i: sg.i, t: Math.max(.15, Math.min(.85, sg.t)), snap: copy(pen.segs) }
-                    : { kind: 'marquee', o: pen.cur };
+      // A shape that is already selected moves from anywhere on it; otherwise an outline within 6px bends, and the body moves.
+      const sh = penShapeAt(pen.cur), sg = !(sh && pen.sel.has(sh.keys[0])) && penSegAt(pen.cur, penOnly(), 6);
+      if (sh && !sg) {                                         // inside a shape: select it, and drag moves all of it
+        if (!pen.sel.has(sh.keys[0])) {
+          if (!e.shiftKey) pen.sel = new Set();
+          sh.keys.forEach(k => pen.sel.add(k));
+        }
+        const q = pen.segs[sh.first].p;
+        pen.drag = { kind: 'move', q, want: pt(q.x, q.y), snap: copy(pen.segs), mirror: null };
+      } else {
+        if (!e.shiftKey) pen.sel = new Set();
+        pen.drag = sg ? { kind: 'curve', i: sg.i, t: Math.max(.15, Math.min(.85, sg.t)), snap: copy(pen.segs) }
+                      : { kind: 'marquee', o: pen.cur };
+      }
     }
     penDraw();
   });
