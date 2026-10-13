@@ -695,6 +695,14 @@ function penDraw() {
     if (s.t === 'C') { mark('c1', s.c1, w(s.c1), from); mark('c2', s.c2, w(s.c2), s.p); }
     mark('p', s.p, w(s.p));
   });
+  if (cur && !drag && !pen.draft) {                      // the outline a press would bend (or add a point to)
+    const near = penPoints(only).some(([, q]) => Math.hypot(X(q) - cur.x, Y(q) - cur.y) <= (pen.alt ? 3 : 7));
+    const sg = !near && penSegAt(cur, only, 8);
+    if (sg) {
+      const s = segs[sg.i], a = prevPoint(segs, sg.i);
+      h = `<path class="hl" d="M${X(a)} ${Y(a)}${s.t === 'C' ? `C${X(s.c1)} ${Y(s.c1)} ${X(s.c2)} ${Y(s.c2)} ${X(s.p)} ${Y(s.p)}` : `L${X(s.p)} ${Y(s.p)}`}"/>` + h;
+    }
+  }
   if (pen.draft?.pts.length) {                           // the shape being drawn, with a rubber band to the cursor
     const D = pen.draft.pts, last = D[D.length - 1], cw = cur && pt((cur.x - v.tx) / v.z, (cur.y - v.ty) / v.z);
     const seg = (a, b) => `C${X(a.hout || a.p)} ${Y(a.hout || a.p)} ${X(b.hin || b.p)} ${Y(b.hin || b.p)} ${X(b.p)} ${Y(b.p)}`;
@@ -898,8 +906,11 @@ function penFlip(at) {
 
 // Double-click a curve to add a point there, keeping its shape (de Casteljau split).
 function penInsert(at) {
-  const { segs } = pen, best = penSegAt(at, penOnly(), 10);
-  if (!best) return;
+  const best = penSegAt(at, penOnly(), 10);
+  if (best) penInsertAt(best);
+}
+function penInsertAt(best) {
+  const { segs } = pen;
   penSave();
   const s = segs[best.i], a = prevPoint(segs, best.i), t = best.t, mid = (p, q) => pt(p.x + (q.x - p.x) * t, p.y + (q.y - p.y) * t);
   let parts;
@@ -912,6 +923,8 @@ function penInsert(at) {
   const out = copy(segs);
   out.splice(best.i, 1, ...copy(parts));
   penReplace(out);
+  pen.sel = new Set([best.i + ':p']);
+  return best.i + ':p';
 }
 
 // Double-click an anchor: with handles -> corner (handles retract); without -> smooth (handles line up with its neighbours).
@@ -1032,7 +1045,7 @@ async function penOn() {
     + btn('save', 'Download SVG', 'M12 4v11m-5-5 5 5 5-5M5 19h14')
     + btn('clip', 'Copy SVG', 'M9 9h11v11H9zM5 15V5h10')
     + '<span class="zoom"></span></div>'
-    + '<details class="penKeys" open><summary>Shortcuts</summary><p><kbd>Scroll</kbd><span>Zoom in and out</span></p><p><kbd>Space + drag</kbd><span>Pan the view</span></p><p><kbd>Drag a point</kbd><span>Move it</span></p><p><kbd>Drag a curve</kbd><span>Bend it</span></p><p><kbd>Alt + drag a handle</kbd><span>Move it alone</span></p><p><kbd>Shift + click</kbd><span>Add to the selection</span></p><p><kbd>Drag on empty space</kbd><span>Select a group</span></p><p><kbd>Double-click a curve</kbd><span>Add a point</span></p><p><kbd>Double-click a point</kbd><span>Round it, or make it sharp</span></p><p><kbd>Alt + double-click</kbd><span>Line ⇄ curve</span></p><p><kbd>Delete</kbd><span>Remove the selected point</span></p><p><kbd>Arrow keys</kbd><span>Nudge (Shift = 1 unit)</span></p><p><kbd>Ctrl + Z</kbd><span>Undo (Shift for redo)</span></p><p><kbd>P</kbd><span>Pen: draw a new shape</span></p><p><kbd>Click, or click + drag</kbd><span>In pen mode: a point, or a curve</span></p><p><kbd>Enter</kbd><span>Close the shape (Esc cancels)</span></p><p><kbd>Esc</kbd><span>Close the editor</span></p><p class="note"><b>Focus</b> (the target button): shows the points of one letter only, the one you are working in, so neighbouring letters stay out of the way. <b>Handles</b> shows every handle at once. <b>Reverse</b> flips a shape’s direction, which turns a shape you drew into a hole.</p></details>';
+    + '<details class="penKeys" open><summary>Shortcuts</summary><p><kbd>Scroll</kbd><span>Zoom in and out</span></p><p><kbd>Space + drag</kbd><span>Pan the view</span></p><p><kbd>Drag a point</kbd><span>Move it</span></p><p><kbd>Drag a curve</kbd><span>Bend it (the highlight shows which)</span></p><p><kbd>Alt + drag a handle</kbd><span>Move it alone</span></p><p><kbd>Shift + click</kbd><span>Add to the selection</span></p><p><kbd>Drag on empty space</kbd><span>Select a group</span></p><p><kbd>Double-click a curve</kbd><span>Add a point</span></p><p><kbd>Double-click a point</kbd><span>Round it, or make it sharp</span></p><p><kbd>Alt + double-click</kbd><span>Line ⇄ curve</span></p><p><kbd>Delete</kbd><span>Remove the selected point</span></p><p><kbd>Arrow keys</kbd><span>Nudge (Shift = 1 unit)</span></p><p><kbd>Ctrl + Z</kbd><span>Undo (Shift for redo)</span></p><p><kbd>P</kbd><span>Pen: draw a new shape</span></p><p><kbd>Click an outline</kbd><span>In pen mode: add a point to it</span></p><p><kbd>Click, or click + drag</kbd><span>In pen mode, in empty space: start a shape</span></p><p><kbd>Enter</kbd><span>Close the shape (Esc cancels)</span></p><p><kbd>Esc</kbd><span>Close the editor</span></p><p class="note"><b>Focus</b> (the target button): shows the points of one letter only, the one you are working in, so neighbouring letters stay out of the way. <b>Handles</b> shows every handle at once. <b>Reverse</b> flips a shape’s direction, which turns a shape you drew into a hole.</p></details>';
   document.body.append(el);
 
   let x1 = 1e9, y1 = 1e9, x2 = -1e9, y2 = -1e9;
@@ -1051,6 +1064,7 @@ async function penOn() {
   };
   const arrows = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
   pen.keys = e => {
+    if (e.key === 'Alt') { e.preventDefault(); pen.alt = e.type === 'keydown'; penDraw(); return; }
     if (e.code === 'Space') { pen.space = e.type === 'keydown'; e.preventDefault(); return; }
     if (e.type !== 'keydown') return;
     const mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
@@ -1107,8 +1121,8 @@ async function penOn() {
   const svg = el.querySelector('svg');
   const at = e => pt(e.clientX, e.clientY);
   const world = q => pt((q.x - pen.tx) / pen.z, (q.y - pen.ty) / pen.z);
-  const hit = q => penPoints(penOnly()).map(([k, p]) => [k, Math.hypot(sx(pen, p.x) - q.x, sy(pen, p.y) - q.y)])
-    .filter(([, d]) => d <= 14).sort((a, b) => a[1] - b[1])[0];
+  const hit = (q, r = 7) => penPoints(penOnly()).map(([k, p]) => [k, Math.hypot(sx(pen, p.x) - q.x, sy(pen, p.y) - q.y)])
+    .filter(([, d]) => d <= r).sort((a, b) => a[1] - b[1])[0];
   el.addEventListener('wheel', e => {
     e.preventDefault();
     const q = at(e), f = Math.max(pen.fit * .2, Math.min(pen.fit * 60, pen.z * Math.exp(-Math.sign(e.deltaY) * Math.min(Math.abs(e.deltaY), 100) * .0015)));
@@ -1121,9 +1135,16 @@ async function penOn() {
     pen.cur = at(e);
     if (e.button === 1 || e.button === 2 || pen.space) { pen.drag = { kind: 'pan' }; return; }
     if (e.button) return;
-    if (pen.draw) {                                     // pen mode: click places a point, drag pulls out its handles
+    const onPoint = pen.draw && !pen.draft && hit(pen.cur, e.altKey ? 3 : 7);       // pen mode on an existing point = edit it
+    if (pen.draw && !onPoint) {                         // pen mode: click places a point, drag pulls out its handles
       const D = pen.draft?.pts || [];
       if (D.length > 2 && Math.hypot(sx(pen, D[0].p.x) - pen.cur.x, sy(pen, D[0].p.y) - pen.cur.y) < 10) return penFinishDraft();
+      const sg = !pen.draft && penSegAt(pen.cur, penOnly(), 8);
+      if (sg) {                                         // on an existing outline: add a point there, and drag it into place
+        const q = penPt(penInsertAt(sg));
+        pen.drag = { kind: 'move', q, want: pt(q.x, q.y), snap: null, mirror: null };
+        return penDraw();
+      }
       let w = world(pen.cur);
       const st = pen.snap ? pen.st : 0;
       if (st) w = pt(Math.round(w.x / st) * st, Math.round(w.y / st) * st);
@@ -1132,7 +1153,7 @@ async function penOn() {
       pen.drag = { kind: 'draw', q };
       return penDraw();
     }
-    const h = hit(pen.cur);
+    const h = hit(pen.cur, e.altKey ? 3 : 7);
     if (h) {
       const k = h[0];
       if (e.shiftKey) pen.sel.has(k) ? pen.sel.delete(k) : pen.sel.add(k);
@@ -1195,7 +1216,7 @@ async function penOn() {
   svg.addEventListener('pointercancel', up);
   svg.addEventListener('dblclick', e => {
     if (pen.draw) return;
-    const q = at(e), h = hit(q);
+    const q = at(e), h = hit(q, e.altKey ? 3 : 7);
     if (h && h[0].endsWith(':p')) penSmooth(+h[0].split(':')[0]);
     else if (!h) (e.altKey ? penFlip : penInsert)(q);
   });

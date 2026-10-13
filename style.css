@@ -157,3 +157,4 @@ body.nolist #selBar,body.nolist #pointer{display:none}
 @media (max-width:700px){.wcard{right:12px;width:170px}.controls{left:16px;width:calc(100vw - 32px)}}
 .penEd .dr{fill:none;stroke:var(--accent);stroke-width:1.5}
 .penEd.drawing>svg{cursor:crosshair}
+.penEd .hl{fill:none;stroke:var(--accent);stroke-width:3;opacity:.7;pointer-events:none}
