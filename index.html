@@ -81,7 +81,7 @@ button,input{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .chip.icon{width:50px;padding:0;display:grid;place-items:center;color:var(--mute)}
 .chip.icon:hover{color:var(--fg)}
 .chip svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-#liga[aria-pressed="true"]{background:linear-gradient(var(--accent-lo),var(--accent));color:#fff;box-shadow:inset 3px 4px 8px rgba(0,0,30,.35),inset 1px 1px 2px rgba(0,0,30,.3)}
+#liga[aria-pressed="true"],#snap[aria-pressed="true"]{background:linear-gradient(var(--accent-lo),var(--accent));color:#fff;box-shadow:inset 3px 4px 8px rgba(0,0,30,.35),inset 1px 1px 2px rgba(0,0,30,.3)}
 .inactive,.inactive .headline{color:var(--dim)}
 
 /* Article */
@@ -826,6 +826,7 @@ function penDraw() {
   let st = 10;
   while (st * v.z < 14) st *= 2;
   while (st * v.z > 40) st /= 2;
+  pen.st = st;
   const m = st * v.z, line = (a, c) => `linear-gradient(${a},${c} 1px,transparent 1px)`;
   const minor = 'color-mix(in srgb,var(--fg) 7%,transparent)', major = 'color-mix(in srgb,var(--fg) 14%,transparent)';
   Object.assign(el.style, {
@@ -889,7 +890,8 @@ async function penOn() {
   el.className = 'penEd';
   el.innerHTML = '<svg><line class="base" x1="0" x2="100%"/><path class="glyphs"/><g class="handles"/></svg>'
     + '<div class="penBar"><button class="chip" data-a="done">Done</button><button class="chip" data-a="reset">Reset</button>'
-    + '<button class="chip" data-a="fit">Fit</button><span class="zoom"></span></div>'
+    + '<button class="chip" data-a="fit">Fit</button>'
+    + '<button class="chip icon" id="snap" data-a="snap" aria-pressed="false" title="Snap to grid"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM4 12h16M12 4v16"/></svg></button><span class="zoom"></span></div>'
     + '<p class="penHint">Scroll to zoom · Space + drag to pan · Shift-click to select more · Esc to close</p>';
   document.body.append(el);
 
@@ -910,6 +912,7 @@ async function penOn() {
     if (a === 'done') penOff();
     else if (a === 'reset') { pen.segs = copy(pen.orig); pen.sel = new Set(); penDraw(); }
     else if (a === 'fit') { Object.assign(pen, home); penDraw(); }
+    else if (a === 'snap') { pen.snap = !pen.snap; el.querySelector('#snap').setAttribute('aria-pressed', pen.snap); }
   });
 
   const svg = el.querySelector('svg');
@@ -933,7 +936,8 @@ async function penOn() {
       const k = hit[0];
       if (e.shiftKey) pen.sel.has(k) ? pen.sel.delete(k) : pen.sel.add(k);
       else if (!pen.sel.has(k)) pen.sel = new Set([k]);
-      pen.drag = { kind: 'move' };
+      const [i, f] = hit[0].split(':'), q = f === 'p' ? pen.segs[i].p : pen.segs[i][f];
+      pen.drag = { kind: 'move', q, want: pt(q.x, q.y) };         // the grabbed point, and where the pointer wants it
     } else {
       if (!e.shiftKey) pen.sel = new Set();
       pen.drag = { kind: 'marquee', o: pen.cur };
@@ -944,7 +948,12 @@ async function penOn() {
     const prev = pen.cur;
     pen.cur = at(e);
     const dx = pen.cur.x - prev.x, dy = pen.cur.y - prev.y;
-    if (pen.drag?.kind === 'move') penMove(dx / pen.z, dy / pen.z);
+    if (pen.drag?.kind === 'move') {
+      const g = pen.drag, w = g.want, s = pen.snap ? pen.st : 0;
+      w.x += dx / pen.z; w.y += dy / pen.z;
+      const tx = s ? Math.round(w.x / s) * s : w.x, ty = s ? Math.round(w.y / s) * s : w.y;
+      penMove(tx - g.q.x, ty - g.q.y);                               // grabbed point lands on the grid; the rest follow
+    }
     else if (pen.drag?.kind === 'pan') { pen.tx += dx; pen.ty += dy; }
     penDraw();
   });
