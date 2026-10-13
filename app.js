@@ -705,9 +705,10 @@ function penDraw() {
   if (drag?.kind === 'marquee') h += `<rect class="mq" x="${Math.min(drag.o.x, cur.x)}" y="${Math.min(drag.o.y, cur.y)}" width="${Math.abs(cur.x - drag.o.x)}" height="${Math.abs(cur.y - drag.o.y)}"/>`;
   const el = pen.el;
   el.querySelector('.glyphs').setAttribute('d', d);
-  el.querySelector('.handles').innerHTML = h;
+  el.querySelector('.handles').innerHTML = v.hide ? '' : h;      // Hide: just the shape, for a clean preview
   const base = el.querySelector('.base');
   base.setAttribute('y1', sy(v, 0)); base.setAttribute('y2', sy(v, 0));
+  base.style.display = v.hide ? 'none' : '';
   // Grid: a world step that stays 14-40px on screen, with a stronger line every 5th.
   let st = 10;
   while (st * v.z < 14) st *= 2;
@@ -716,7 +717,7 @@ function penDraw() {
   const m = st * v.z, line = (a, c) => `linear-gradient(${a},${c} 1px,transparent 1px)`;
   const minor = 'color-mix(in srgb,var(--fg) 7%,transparent)', major = 'color-mix(in srgb,var(--fg) 14%,transparent)';
   Object.assign(el.style, {
-    backgroundImage: [line('to bottom', major), line('to right', major), line('to bottom', minor), line('to right', minor)].join(),
+    backgroundImage: v.hide ? 'none' : [line('to bottom', major), line('to right', major), line('to bottom', minor), line('to right', minor)].join(),
     backgroundSize: `${m * 5}px ${m * 5}px,${m * 5}px ${m * 5}px,${m}px ${m}px,${m}px ${m}px`,
     backgroundPosition: `${v.tx}px ${v.ty}px`
   });
@@ -1031,11 +1032,12 @@ async function penOn() {
     + btn('undo', 'Undo (Ctrl+Z)', 'M9 14 4 9l5-5M4 9h10a6 6 0 0 1 0 12h-4')
     + btn('redo', 'Redo (Ctrl+Shift+Z)', 'M15 14l5-5-5-5M20 9H10a6 6 0 0 0 0 12h4')
     + btn('snap', 'Snap to grid', 'M4 4h16v16H4zM4 12h16M12 4v16')
+    + btn('hide', 'Hide points and grid to preview the shape (H)', 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z')
     + btn('save', 'Download SVG', 'M12 4v11m-5-5 5 5 5-5M5 19h14')
     + btn('clip', 'Copy SVG', 'M9 9h11v11H9zM5 15V5h10')
     + btn('help', 'Shortcuts (?)', 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM9.7 9.4a2.4 2.4 0 1 1 3.4 2.2c-.7.4-1.1.9-1.1 1.6M12 16.8v.1')
     + '<span class="zoom"></span></div>'
-    + '<aside class="penKeys open"><header><b>Shortcuts</b><button class="chip icon" data-a="help" title="Close">×</button></header><p><kbd>Scroll</kbd><span>Zoom in and out</span></p><p><kbd>Space + drag</kbd><span>Pan the view</span></p><p><kbd>Drag a point</kbd><span>Move it</span></p><p><kbd>Drag inside a shape</kbd><span>Select and move all of it</span></p><p><kbd>Double-click a point</kbd><span>Round it (lines become curves), or make it sharp</span></p><p><kbd>Drag a curve</kbd><span>Bend it (the highlight shows which)</span></p><p><kbd>Shift + click</kbd><span>Add to the selection</span></p><p><kbd>Drag on empty space</kbd><span>Select a group</span></p><p><kbd>Double-click a curve</kbd><span>Add a point</span></p><p><kbd>Delete</kbd><span>Remove the selected point</span></p><p><kbd>Ctrl + C / X / V</kbd><span>Copy, cut, paste a whole shape</span></p><p><kbd>Ctrl + D</kbd><span>Duplicate it (Ctrl + Shift + V pastes in place)</span></p><p><kbd>Arrow keys</kbd><span>Nudge (Shift = 1 unit)</span></p><p><kbd>Ctrl + Z</kbd><span>Undo (Shift for redo)</span></p><p><kbd>P</kbd><span>Pen: draw a new shape</span></p><p><kbd>Click an outline</kbd><span>In pen mode: add a point to it</span></p><p><kbd>Click, or click + drag</kbd><span>In pen mode, in empty space: start a shape</span></p><p><kbd>Enter</kbd><span>Close the shape (Esc cancels)</span></p><p><kbd>Esc</kbd><span>Close the editor</span></p></aside>';
+    + '<aside class="penKeys open"><header><b>Shortcuts</b><button class="chip icon" data-a="help" title="Close">×</button></header><p><kbd>Scroll</kbd><span>Zoom in and out</span></p><p><kbd>Space + drag</kbd><span>Pan the view</span></p><p><kbd>Drag a point</kbd><span>Move it</span></p><p><kbd>Drag inside a shape</kbd><span>Select and move all of it</span></p><p><kbd>Double-click a point</kbd><span>Round it (lines become curves), or make it sharp</span></p><p><kbd>Drag a curve</kbd><span>Bend it (the highlight shows which)</span></p><p><kbd>Shift + click</kbd><span>Add to the selection</span></p><p><kbd>Drag on empty space</kbd><span>Select a group</span></p><p><kbd>Double-click a curve</kbd><span>Add a point</span></p><p><kbd>Delete</kbd><span>Remove the selected point</span></p><p><kbd>Ctrl + C / X / V</kbd><span>Copy, cut, paste a whole shape</span></p><p><kbd>Ctrl + D</kbd><span>Duplicate it (Ctrl + Shift + V pastes in place)</span></p><p><kbd>Arrow keys</kbd><span>Nudge (Shift = 1 unit)</span></p><p><kbd>Ctrl + Z</kbd><span>Undo (Shift for redo)</span></p><p><kbd>P</kbd><span>Pen: draw a new shape</span></p><p><kbd>H</kbd><span>Hide points and grid (preview)</span></p><p><kbd>Click an outline</kbd><span>In pen mode: add a point to it</span></p><p><kbd>Click, or click + drag</kbd><span>In pen mode, in empty space: start a shape</span></p><p><kbd>Enter</kbd><span>Close the shape (Esc cancels)</span></p><p><kbd>Esc</kbd><span>Close the editor</span></p></aside>';
   document.body.append(el);
 
   let x1 = 1e9, y1 = 1e9, x2 = -1e9, y2 = -1e9;
@@ -1044,7 +1046,7 @@ async function penOn() {
   const fit = Math.min(W * .8 / Math.max(1, x2 - x1), H * .5 / Math.max(1, y2 - y1));
   const home = { z: fit, tx: W / 2 - fit * (x1 + x2) / 2, ty: H / 2 - fit * (y1 + y2) / 2 };
   pen = { segs, twin: penTwins(segs), sel: new Set(), cur: null, drag: null, orig: copy(segs), el, fit, ...home,
-          space: false, undo: [], redo: [], snap: true, draw: false, draft: null };
+          space: false, undo: [], redo: [], snap: true, hide: false, draw: false, draft: null };
 
   el.querySelector('#snap').setAttribute('aria-pressed', 'true');      // snap starts on
   const setDraw = on => {
@@ -1060,6 +1062,7 @@ async function penOn() {
     const mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
     if (k === 'escape') { if (pen.draft) { pen.draft = null; penDraw(); } else if (pen.draw) setDraw(false); else penOff(); }
     else if (k === 'p' && !mod) setDraw(!pen.draw);
+    else if (k === 'h' && !mod) toggle('hide', 'hide');
     else if (e.key === '?') showKeys(!keys.classList.contains('open'));
     else if (k === 'enter' && pen.draft) { e.preventDefault(); penFinishDraft(); }
     else if (k === 'backspace' && pen.draft) {          // take back the last point
@@ -1122,6 +1125,7 @@ async function penOn() {
     else if (a === 'undo') penRestore(pen.undo, pen.redo);
     else if (a === 'redo') penRestore(pen.redo, pen.undo);
     else if (a === 'snap') toggle('snap', 'snap');
+    else if (a === 'hide') toggle('hide', 'hide');
     else if (a === 'help') showKeys(!keys.classList.contains('open'));
     else if (a === 'save') {
       const f = Object.assign(document.createElement('a'), { download: `${head.family}-${(headline.textContent || 'outline').slice(0, 24)}.svg`.replace(/[^\w.-]+/g, '_'),
@@ -1147,7 +1151,7 @@ async function penOn() {
     svg.setPointerCapture(e.pointerId);
     pen.cur = at(e);
     if (e.button === 1 || e.button === 2 || pen.space) { pen.drag = { kind: 'pan' }; return; }
-    if (e.button) return;
+    if (e.button || pen.hide) return;                   // while previewing, only zoom and pan
     const now = performance.now(), L = pen.last;
     pen.last = { t: now, x: e.clientX, y: e.clientY };
     if (!pen.draw && L && now - L.t < 400 && Math.hypot(L.x - e.clientX, L.y - e.clientY) < 6) {
