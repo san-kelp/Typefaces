@@ -1024,7 +1024,7 @@ async function penOn() {
   const ic = d => `<svg viewBox="0 0 24 24"><path d="${d}"/></svg>`;
   const btn = (id, title, d) => `<button class="chip icon" id="${id}" data-a="${id}" title="${title}">${ic(d)}</button>`;
   el.innerHTML = '<svg><line class="base" x1="0" x2="100%"/><path class="glyphs"/><g class="handles"/></svg>'
-    + '<button class="penDone" data-a="done">Done</button>'
+    + '<button class="penDone" data-a="done">Return</button>'
     + '<div class="penBar"><button class="chip" data-a="reset">Reset</button>'
     + '<button class="chip" data-a="fit">Fit</button>'
     + btn('draw', 'Draw a new shape (P)', 'M4 20l4-1 11-11-3-3L5 16zM14 6l3 3')
