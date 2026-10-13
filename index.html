@@ -72,6 +72,7 @@ button,input{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .penEd .mq{fill:rgba(31,69,255,.1);stroke:var(--accent);stroke-dasharray:4 2}
 .penBar{position:absolute;left:24px;top:24px;display:flex;gap:14px;align-items:center}
 .penBar .zoom{font-size:13px;color:var(--mute);min-width:48px}
+.penNote{position:fixed;left:50%;bottom:64px;transform:translateX(-50%);z-index:101;font-size:14px;opacity:.6;white-space:nowrap}
 .penHint{position:absolute;left:50%;bottom:32px;transform:translateX(-50%);font-size:14px;opacity:.4;white-space:nowrap}
 .pill{display:flex;gap:14px;opacity:0;pointer-events:none;transition:opacity .4s}
 .typed .pill{opacity:.35;pointer-events:auto}
@@ -776,6 +777,13 @@ function penFont(s) {
   return penFonts.get(s.ps);
 }
 
+// A short notice at the bottom, for when the editor can't open.
+function penNote(t) {
+  document.querySelector('.penNote')?.remove();
+  const n = Object.assign(document.createElement('p'), { className: 'penNote', textContent: t });
+  document.body.append(n);
+  setTimeout(() => n.remove(), 3500);
+}
 function penOff() {
   if (!pen) return;
   removeEventListener('keydown', pen.keys);
@@ -850,13 +858,13 @@ function penMove(dx, dy) {                                  // world units
 }
 
 async function penOn() {
-  if (pen || !head?.g || !headline.textContent) return;
+  if (pen || !head?.g) return;
   let font;
-  try { font = await penFont(head); } catch { return msg('Couldn’t load outlines for this font.'); }
+  try { font = await penFont(head); } catch { return penNote('Couldn’t load outlines for this font. Try another weight.'); }
   closeDrawer();
   headline.blur();
   const L = body.classList.contains('liga');
-  const path = font.getPath(headline.textContent, 0, 0, 200, { features: { liga: L, rlig: L, clig: L } });
+  const path = font.getPath(headline.textContent || head.family, 0, 0, 200, { features: { liga: L, rlig: L, clig: L } });
   const segs = [];
   let c = pt(0, 0);
   for (const k of path.commands) {
