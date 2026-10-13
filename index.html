@@ -656,16 +656,27 @@ function draw() {
 
 /* ---------- Click sound ---------- */
 
-let audio, clickBuf, clickAt = 0, tick = -1;
+let audio, clickBuf, tick = -1;
+// The click is synthesised, so there is no audio file to license or host: a sharp noise burst, a short
+// mid-range tick and a soft low thump, each dying away in a few milliseconds. Tune by ear.
+const CLICK = { tickHz: 2200, thumpHz: 150, seconds: .03 };
+function makeClick(ctx) {
+  const sr = ctx.sampleRate, n = Math.round(CLICK.seconds * sr), buf = ctx.createBuffer(1, n, sr), d = buf.getChannelData(0);
+  let peak = 0;
+  for (let i = 0; i < n; i++) {
+    const t = i / sr;
+    d[i] = (Math.random() * 2 - 1) * Math.exp(-t / .0015) * .7
+         + Math.sin(2 * Math.PI * CLICK.tickHz * t) * Math.exp(-t / .003) * .6
+         + Math.sin(2 * Math.PI * CLICK.thumpHz * t) * Math.exp(-t / .007) * .5;
+    peak = Math.max(peak, Math.abs(d[i]));
+  }
+  for (let i = 0; i < n; i++) d[i] /= peak;
+  return buf;
+}
 async function initSound() {
   if (audio) return audio.resume();
   audio = new AudioContext();
-  clickBuf = await audio.decodeAudioData(await (await fetch('click.mp3')).arrayBuffer());
-  // Skip silence at the start of the file so the click lands exactly as the font passes the pointer.
-  const d = clickBuf.getChannelData(0);
-  let i = 0;
-  while (i < d.length && Math.abs(d[i]) < .02) i++;
-  clickAt = i / clickBuf.sampleRate;
+  clickBuf = makeClick(audio);
 }
 function click() {
   if (!clickBuf || audio.state !== 'running') return;
@@ -673,9 +684,9 @@ function click() {
   s.buffer = clickBuf;
   s.playbackRate.value = .96 + Math.random() * .08;     // slight variation, like a real dial
   const vol = audio.createGain();
-  vol.gain.value = .05;                                  // 5% of the file's volume
+  vol.gain.value = .05;                                  // quiet: 5% of full scale
   s.connect(vol).connect(audio.destination);
-  s.start(0, clickAt);
+  s.start();
 }
 
 // Spring toward the goal (Framer used spring, bounce .2, .4s).

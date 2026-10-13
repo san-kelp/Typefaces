@@ -20,7 +20,7 @@ Reading installed fonts needs Chrome or Edge, and the page must be served from `
 python -m http.server 4400
 ```
 
-Then open <http://localhost:4400>, click the font name above the headline, and allow access to fonts. Without access, the drawer falls back to Google Fonts.
+Then open <http://localhost:4400>, click the font name above the headline, and allow access to fonts. Without access, My fonts stays empty and asks for it; the Google tab works either way.
 
 The first visit reads every installed font file once to get its family name, then caches the result.
 
@@ -43,4 +43,4 @@ Nothing is uploaded. Two things do go over the network:
 
 - Article text from [Wikipedia](https://en.wikipedia.org/), licensed [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
 - Fonts in the Google tab from [Google Fonts](https://fonts.google.com/) (OFL / Apache licences).
-- Click sound: "click-1" by freesound_community via Pixabay.
+- Click sound: synthesised in code (Web Audio), so there is no audio file.
