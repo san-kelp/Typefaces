@@ -1022,11 +1022,11 @@ async function penOn() {
   const el = document.createElement('div');
   el.className = 'penEd';
   const ic = d => `<svg viewBox="0 0 24 24"><path d="${d}"/></svg>`;
-  const btn = (id, title, d) => `<button class="chip icon" id="${id}" data-a="${id}" title="${title}">${ic(d)}</button>`;
+  const btn = (id, tip, d) => `<button class="chip icon" id="${id}" data-a="${id}" data-tip="${tip}" aria-label="${tip}">${ic(d)}</button>`;
   el.innerHTML = '<svg><line class="base" x1="0" x2="100%"/><path class="glyphs"/><g class="handles"/></svg>'
     + '<button class="penDone" data-a="done">Return</button>'
-    + '<div class="penBar"><button class="chip" data-a="reset">Reset</button>'
-    + '<button class="chip" data-a="fit">Fit</button>'
+    + '<div class="penBar"><button class="chip" data-a="reset" data-tip="Put the shape back as it was">Reset</button>'
+    + '<button class="chip" data-a="fit" data-tip="Fit the word to the window">Fit</button>'
     + btn('draw', 'Draw a new shape (P)', 'M4 20l4-1 11-11-3-3L5 16zM14 6l3 3')
     + btn('undo', 'Undo (Ctrl+Z)', 'M9 14 4 9l5-5M4 9h10a6 6 0 0 1 0 12h-4')
     + btn('redo', 'Redo (Ctrl+Shift+Z)', 'M15 14l5-5-5-5M20 9H10a6 6 0 0 0 0 12h4')
@@ -1097,6 +1097,23 @@ async function penOn() {
   el.addEventListener('wheel', tuck, { once: true, passive: true });
   const toggle = (key, id) => { pen[key] = !pen[key]; el.querySelector('#' + id).setAttribute('aria-pressed', pen[key]); penDraw(); };
   el.querySelector('.penDone').addEventListener('click', penOff);
+  // Tooltips: a boxed label above the toolbar, over whichever button is hovered or focused.
+  const tip = Object.assign(document.createElement('div'), { className: 'penTip', hidden: true });
+  el.append(tip);
+  const bar = el.querySelector('.penBar');
+  const showTip = e => {
+    const b = e.target.closest?.('[data-tip]');
+    tip.hidden = !b;
+    if (!b) return;
+    tip.textContent = b.dataset.tip;
+    const r = b.getBoundingClientRect(), top = bar.getBoundingClientRect().top;
+    tip.style.left = Math.max(12, Math.min(innerWidth - tip.offsetWidth - 12, r.left + r.width / 2 - tip.offsetWidth / 2)) + 'px';
+    tip.style.bottom = innerHeight - top + 10 + 'px';
+  };
+  bar.addEventListener('pointerover', showTip);
+  bar.addEventListener('focusin', showTip);
+  bar.addEventListener('pointerleave', () => { tip.hidden = true; });
+  bar.addEventListener('focusout', () => { tip.hidden = true; });
   el.querySelector('.penBar').addEventListener('click', e => {
     const a = e.target.closest('[data-a]')?.dataset.a;
     if (a === 'reset') { penSave(); penReplace(copy(pen.orig)); }

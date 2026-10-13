@@ -156,3 +156,5 @@ body.nolist #selBar,body.nolist #pointer{display:none}
 .penEd .hl{fill:none;stroke:var(--accent);stroke-width:3;opacity:.7;pointer-events:none}
 .penEd .handles *{pointer-events:none}
 .penDone{position:absolute;left:24px;top:24px;height:44px;padding:0 20px;border-radius:6px;background:var(--obj-bg);box-shadow:var(--obj);font-size:14px;color:var(--fg)}
+.penTip{position:absolute;z-index:102;padding:8px 12px;border-radius:6px;background:var(--obj-bg);box-shadow:var(--obj);font-size:13px;line-height:1.3;color:var(--fg);white-space:nowrap;pointer-events:none}
+.penTip[hidden]{display:none}
