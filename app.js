@@ -988,6 +988,44 @@ function penReverse() {
   penReplace(penBuild(cs));
 }
 
+// Copy / cut / paste whole shapes: any shape with a selected point. The clipboard outlives the editor,
+// so a shape copied from one letter or word can be pasted into another.
+var penClip = null;
+function penPick(where) {
+  const pick = new Set();
+  for (const k of pen.sel) { const w = where[+k.split(':')[0]]; if (w) pick.add(w[0]); }
+  return pick;
+}
+function penCopy() {
+  const { where } = penParse(pen.segs), pick = penPick(where);
+  if (!pick.size) { penNote('Select a point on a shape first (Ctrl+A selects everything).'); return false; }
+  penClip = { shapes: copy([...pick].map(c => ({ g: c.g, nodes: c.nodes, arcs: c.arcs }))), n: 0 };
+  penNote(pick.size === 1 ? 'Copied 1 shape' : `Copied ${pick.size} shapes`);
+  return true;
+}
+function penCut() {
+  if (!penCopy()) return;
+  penSave();
+  const { cs, where } = penParse(pen.segs), drop = penPick(where);
+  penReplace(penBuild(cs.filter(c => !drop.has(c))));
+}
+function penPaste(inPlace) {
+  if (!penClip) return penNote('Nothing copied yet. Select a shape and press Ctrl+C.');
+  penSave();
+  const { cs } = penParse(pen.segs), maxG = Math.max(0, ...pen.segs.map(s => s.g)), off = inPlace ? 0 : pen.st * 2 * ++penClip.n;
+  const add = copy(penClip.shapes).map(c => {
+    for (const q of c.nodes) { q.x += off; q.y += off; }
+    for (const a of c.arcs) if (a.t === 'C') { a.c1.x += off; a.c1.y += off; a.c2.x += off; a.c2.y += off; }
+    return { ...c, g: Math.min(c.g, maxG), closed: true };
+  });
+  const out = penBuild(cs.concat(add));
+  let start = out.length;
+  for (const c of add) start -= c.nodes.length + 2;     // each shape is M + one segment per node + Z
+  penReplace(out);
+  for (let i = start; i < out.length; i++) if (out[i].t !== 'Z') pen.sel.add(i + ':p');
+  penDraw();
+}
+
 /* ----- Opening ----- */
 
 async function penOn() {
@@ -1032,7 +1070,7 @@ async function penOn() {
     + btn('save', 'Download SVG', 'M12 4v11m-5-5 5 5 5-5M5 19h14')
     + btn('clip', 'Copy SVG', 'M9 9h11v11H9zM5 15V5h10')
     + '<span class="zoom"></span></div>'
-    + '<details class="penKeys" open><summary>Shortcuts</summary><p><kbd>Scroll</kbd><span>Zoom in and out</span></p><p><kbd>Space + drag</kbd><span>Pan the view</span></p><p><kbd>Drag a point</kbd><span>Move it</span></p><p><kbd>Drag a curve</kbd><span>Bend it (the highlight shows which)</span></p><p><kbd>Alt + drag a handle</kbd><span>Move it alone</span></p><p><kbd>Shift + click</kbd><span>Add to the selection</span></p><p><kbd>Drag on empty space</kbd><span>Select a group</span></p><p><kbd>Double-click a curve</kbd><span>Add a point</span></p><p><kbd>Double-click a point</kbd><span>Round it, or make it sharp</span></p><p><kbd>Delete</kbd><span>Remove the selected point</span></p><p><kbd>Arrow keys</kbd><span>Nudge (Shift = 1 unit)</span></p><p><kbd>Ctrl + Z</kbd><span>Undo (Shift for redo)</span></p><p><kbd>P</kbd><span>Pen: draw a new shape</span></p><p><kbd>Click an outline</kbd><span>In pen mode: add a point to it</span></p><p><kbd>Click, or click + drag</kbd><span>In pen mode, in empty space: start a shape</span></p><p><kbd>Enter</kbd><span>Close the shape (Esc cancels)</span></p><p><kbd>Esc</kbd><span>Close the editor</span></p><p class="note"><b>Focus</b> (the target button): shows the points of one letter only, the one you are working in, so neighbouring letters stay out of the way. <b>Handles</b> shows every handle at once. <b>Reverse</b> flips a shape’s direction, which turns a shape you drew into a hole.</p></details>';
+    + '<details class="penKeys" open><summary>Shortcuts</summary><p><kbd>Scroll</kbd><span>Zoom in and out</span></p><p><kbd>Space + drag</kbd><span>Pan the view</span></p><p><kbd>Drag a point</kbd><span>Move it</span></p><p><kbd>Drag a curve</kbd><span>Bend it (the highlight shows which)</span></p><p><kbd>Alt + drag a handle</kbd><span>Move it alone</span></p><p><kbd>Shift + click</kbd><span>Add to the selection</span></p><p><kbd>Drag on empty space</kbd><span>Select a group</span></p><p><kbd>Double-click a curve</kbd><span>Add a point</span></p><p><kbd>Double-click a point</kbd><span>Round it, or make it sharp</span></p><p><kbd>Delete</kbd><span>Remove the selected point</span></p><p><kbd>Ctrl + C / X / V</kbd><span>Copy, cut, paste a whole shape</span></p><p><kbd>Ctrl + D</kbd><span>Duplicate it (Ctrl + Shift + V pastes in place)</span></p><p><kbd>Arrow keys</kbd><span>Nudge (Shift = 1 unit)</span></p><p><kbd>Ctrl + Z</kbd><span>Undo (Shift for redo)</span></p><p><kbd>P</kbd><span>Pen: draw a new shape</span></p><p><kbd>Click an outline</kbd><span>In pen mode: add a point to it</span></p><p><kbd>Click, or click + drag</kbd><span>In pen mode, in empty space: start a shape</span></p><p><kbd>Enter</kbd><span>Close the shape (Esc cancels)</span></p><p><kbd>Esc</kbd><span>Close the editor</span></p><p class="note"><b>Focus</b> (the target button): shows the points of one letter only, the one you are working in, so neighbouring letters stay out of the way. <b>Handles</b> shows every handle at once. <b>Reverse</b> flips a shape’s direction, which turns a shape you drew into a hole.</p></details>';
   document.body.append(el);
 
   let x1 = 1e9, y1 = 1e9, x2 = -1e9, y2 = -1e9;
@@ -1068,6 +1106,10 @@ async function penOn() {
     }
     else if (mod && k === 'z') { e.preventDefault(); e.shiftKey ? penRestore(pen.redo, pen.undo) : penRestore(pen.undo, pen.redo); }
     else if (mod && k === 'y') { e.preventDefault(); penRestore(pen.redo, pen.undo); }
+    else if (mod && k === 'c') { e.preventDefault(); penCopy(); }
+    else if (mod && k === 'x') { e.preventDefault(); penCut(); }
+    else if (mod && k === 'v') { e.preventDefault(); penPaste(e.shiftKey); }
+    else if (mod && k === 'd') { e.preventDefault(); if (penCopy()) penPaste(false); }
     else if (mod && k === 'a') { e.preventDefault(); pen.sel = new Set(penPoints(penOnly()).map(([key]) => key)); penDraw(); }
     else if (k === 'delete' || k === 'backspace') { e.preventDefault(); penDelete(); }
     else if (arrows[e.key] && pen.sel.size) {
