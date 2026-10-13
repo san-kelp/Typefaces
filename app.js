@@ -699,7 +699,7 @@ function penDraw() {
     mark('p', s.p, w(s.p));
   });
   if (cur && !drag && !pen.draft) {                      // the outline a press would bend (or add a point to)
-    const near = penPoints(only).some(([, q]) => Math.hypot(X(q) - cur.x, Y(q) - cur.y) <= (pen.alt ? 3 : 7));
+    const near = penPoints(only).some(([, q]) => Math.hypot(X(q) - cur.x, Y(q) - cur.y) <= 7);
     const sg = !near && penSegAt(cur, only, 8);
     if (sg) {
       const s = segs[sg.i], a = prevPoint(segs, sg.i);
@@ -891,22 +891,6 @@ function penPartner(k) {
   return cross < .05 && dot < 0 ? { key, P, len: lv } : null;
 }
 
-// Alt + double-click a segment: straight line <-> curve.
-function penFlip(at) {
-  const sg = penSegAt(at, penOnly(), 10);
-  if (!sg) return;
-  penSave();
-  const s = pen.segs[sg.i], a = prevPoint(pen.segs, sg.i);
-  if (s.t === 'C') {
-    pen.segs[sg.i] = { t: 'L', p: s.p, g: s.g };
-    pen.sel.delete(sg.i + ':c1'); pen.sel.delete(sg.i + ':c2');
-  } else {
-    const at3 = f => pt(a.x + (s.p.x - a.x) * f, a.y + (s.p.y - a.y) * f);
-    pen.segs[sg.i] = { t: 'C', c1: at3(1 / 3), c2: at3(2 / 3), p: s.p, g: s.g };
-  }
-  penDraw();
-}
-
 // Double-click a curve to add a point there, keeping its shape (de Casteljau split).
 function penInsert(at) {
   const best = penSegAt(at, penOnly(), 10);
@@ -1048,7 +1032,7 @@ async function penOn() {
     + btn('save', 'Download SVG', 'M12 4v11m-5-5 5 5 5-5M5 19h14')
     + btn('clip', 'Copy SVG', 'M9 9h11v11H9zM5 15V5h10')
     + '<span class="zoom"></span></div>'
-    + '<details class="penKeys" open><summary>Shortcuts</summary><p><kbd>Scroll</kbd><span>Zoom in and out</span></p><p><kbd>Space + drag</kbd><span>Pan the view</span></p><p><kbd>Drag a point</kbd><span>Move it</span></p><p><kbd>Drag a curve</kbd><span>Bend it (the highlight shows which)</span></p><p><kbd>Alt + drag a handle</kbd><span>Move it alone</span></p><p><kbd>Shift + click</kbd><span>Add to the selection</span></p><p><kbd>Drag on empty space</kbd><span>Select a group</span></p><p><kbd>Double-click a curve</kbd><span>Add a point</span></p><p><kbd>Double-click a point</kbd><span>Round it, or make it sharp</span></p><p><kbd>Alt + double-click</kbd><span>Line ⇄ curve</span></p><p><kbd>Delete</kbd><span>Remove the selected point</span></p><p><kbd>Arrow keys</kbd><span>Nudge (Shift = 1 unit)</span></p><p><kbd>Ctrl + Z</kbd><span>Undo (Shift for redo)</span></p><p><kbd>P</kbd><span>Pen: draw a new shape</span></p><p><kbd>Click an outline</kbd><span>In pen mode: add a point to it</span></p><p><kbd>Click, or click + drag</kbd><span>In pen mode, in empty space: start a shape</span></p><p><kbd>Enter</kbd><span>Close the shape (Esc cancels)</span></p><p><kbd>Esc</kbd><span>Close the editor</span></p><p class="note"><b>Focus</b> (the target button): shows the points of one letter only, the one you are working in, so neighbouring letters stay out of the way. <b>Handles</b> shows every handle at once. <b>Reverse</b> flips a shape’s direction, which turns a shape you drew into a hole.</p></details>';
+    + '<details class="penKeys" open><summary>Shortcuts</summary><p><kbd>Scroll</kbd><span>Zoom in and out</span></p><p><kbd>Space + drag</kbd><span>Pan the view</span></p><p><kbd>Drag a point</kbd><span>Move it</span></p><p><kbd>Drag a curve</kbd><span>Bend it (the highlight shows which)</span></p><p><kbd>Alt + drag a handle</kbd><span>Move it alone</span></p><p><kbd>Shift + click</kbd><span>Add to the selection</span></p><p><kbd>Drag on empty space</kbd><span>Select a group</span></p><p><kbd>Double-click a curve</kbd><span>Add a point</span></p><p><kbd>Double-click a point</kbd><span>Round it, or make it sharp</span></p><p><kbd>Delete</kbd><span>Remove the selected point</span></p><p><kbd>Arrow keys</kbd><span>Nudge (Shift = 1 unit)</span></p><p><kbd>Ctrl + Z</kbd><span>Undo (Shift for redo)</span></p><p><kbd>P</kbd><span>Pen: draw a new shape</span></p><p><kbd>Click an outline</kbd><span>In pen mode: add a point to it</span></p><p><kbd>Click, or click + drag</kbd><span>In pen mode, in empty space: start a shape</span></p><p><kbd>Enter</kbd><span>Close the shape (Esc cancels)</span></p><p><kbd>Esc</kbd><span>Close the editor</span></p><p class="note"><b>Focus</b> (the target button): shows the points of one letter only, the one you are working in, so neighbouring letters stay out of the way. <b>Handles</b> shows every handle at once. <b>Reverse</b> flips a shape’s direction, which turns a shape you drew into a hole.</p></details>';
   document.body.append(el);
 
   let x1 = 1e9, y1 = 1e9, x2 = -1e9, y2 = -1e9;
@@ -1057,8 +1041,10 @@ async function penOn() {
   const fit = Math.min(W * .8 / Math.max(1, x2 - x1), H * .5 / Math.max(1, y2 - y1));
   const home = { z: fit, tx: W / 2 - fit * (x1 + x2) / 2, ty: H / 2 - fit * (y1 + y2) / 2 };
   pen = { segs, twin: penTwins(segs), sel: new Set(), cur: null, drag: null, orig: copy(segs), el, fit, ...home,
-          space: false, undo: [], redo: [], snap: false, ruler: false, focus: false, all: false, draw: false, draft: null };
+          space: false, undo: [], redo: [], snap: true, ruler: false, focus: false, all: true, draw: false, draft: null };
 
+  el.querySelector('#snap').setAttribute('aria-pressed', 'true');      // snap and all handles start on
+  el.querySelector('#allh').setAttribute('aria-pressed', 'true');
   const setDraw = on => {
     pen.draw = on; pen.draft = null; pen.sel = new Set();
     el.classList.toggle('drawing', on);
@@ -1145,7 +1131,7 @@ async function penOn() {
       pen.drag = null;
       return onDouble(e);
     }
-    const onPoint = pen.draw && !pen.draft && hit(pen.cur, e.altKey ? 3 : 7);       // pen mode on an existing point = edit it
+    const onPoint = pen.draw && !pen.draft && hit(pen.cur);       // pen mode on an existing point = edit it
     if (pen.draw && !onPoint) {                         // pen mode: click places a point, drag pulls out its handles
       const D = pen.draft?.pts || [];
       if (D.length > 2 && Math.hypot(sx(pen, D[0].p.x) - pen.cur.x, sy(pen, D[0].p.y) - pen.cur.y) < 10) return penFinishDraft();
@@ -1163,7 +1149,7 @@ async function penOn() {
       pen.drag = { kind: 'draw', q };
       return penDraw();
     }
-    const h = hit(pen.cur, e.altKey ? 3 : 7);
+    const h = hit(pen.cur);
     if (h) {
       const k = h[0];
       if (e.shiftKey) pen.sel.has(k) ? pen.sel.delete(k) : pen.sel.add(k);
@@ -1224,11 +1210,11 @@ async function penOn() {
   };
   svg.addEventListener('pointerup', up);
   svg.addEventListener('pointercancel', up);
-  // Double-click: on a point it rounds or sharpens it; on an outline it adds a point (Alt: flips line <-> curve).
+  // Double-click: on a point it rounds or sharpens it; on an outline it adds a point.
   function onDouble(e) {
-    const q = at(e), h = hit(q, e.altKey ? 3 : 7);
+    const q = at(e), h = hit(q);
     if (h && h[0].endsWith(':p')) penSmooth(+h[0].split(':')[0]);
-    else if (!h) (e.altKey ? penFlip : penInsert)(q);
+    else if (!h) penInsert(q);
   }
   svg.addEventListener('contextmenu', e => e.preventDefault());
   svg.addEventListener('pointerleave', () => { if (pen && !pen.drag) { pen.cur = null; penDraw(); } });
