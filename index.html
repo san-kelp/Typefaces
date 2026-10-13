@@ -530,7 +530,10 @@ async function openDrawer(t) {
 }
 
 // Which list the dial shows. "My fonts" falls back to Google if font access isn't available.
-let src = store.get('src', 'google');
+// Only Chromium on desktop can read installed fonts; elsewhere the My fonts tab isn't offered at all.
+const canLocal = 'queryLocalFonts' in window;
+let src = canLocal ? store.get('src', 'google') : 'google';
+if (!canLocal) document.querySelector('.tabs').remove();   // one source left, so no switch
 async function loadSource() {
   $('dMsg').hidden = true;
   document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-pressed', b.dataset.src === src));
