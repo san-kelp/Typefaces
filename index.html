@@ -60,7 +60,19 @@ button,input{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .hint.on{opacity:.4}
 
 /* Keys: hard-edged, recessed */
-.pill[hidden]{display:none}
+.pill[hidden],.chip[hidden]{display:none}
+/* Pen editor: a full-screen layer with a grid that follows the zoom */
+.penEd{position:fixed;inset:0;z-index:100;background-color:var(--bg);touch-action:none;cursor:default;overflow:hidden}
+.penEd svg{position:absolute;inset:0;width:100%;height:100%}
+.penEd .glyphs{fill:var(--fg)}
+.penEd .h{fill:var(--bg);stroke:var(--fg);stroke-width:1.5}
+.penEd .h.on{fill:var(--accent);stroke:var(--accent)}
+.penEd .ln{stroke:var(--accent);stroke-width:1.5}
+.penEd .base{stroke:var(--accent);stroke-width:1;opacity:.5}
+.penEd .mq{fill:rgba(31,69,255,.1);stroke:var(--accent);stroke-dasharray:4 2}
+.penBar{position:absolute;left:24px;top:24px;display:flex;gap:14px;align-items:center}
+.penBar .zoom{font-size:13px;color:var(--mute);min-width:48px}
+.penHint{position:absolute;left:50%;bottom:32px;transform:translateX(-50%);font-size:14px;opacity:.4;white-space:nowrap}
 .pill{display:flex;gap:14px;opacity:0;pointer-events:none;transition:opacity .4s}
 .typed .pill{opacity:.35;pointer-events:auto}
 .typed .stage:hover .pill,.typed .pill:focus-within,.drawer-open .pill{opacity:1}
@@ -149,6 +161,7 @@ button,input{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
     <button class="chip icon" id="export" title="Download this font file"><svg viewBox="0 0 24 24"><path d="M12 4v11m-5-5 5 5 5-5M5 19h14"/></svg></button>
     <button class="chip" id="headName" title="Change headline font">Headline</button>
     <button class="chip icon" id="liga" aria-pressed="false" title="Ligatures">fi</button>
+    <button class="chip icon" id="pen" title="Edit outlines (Google fonts only)" hidden><svg viewBox="0 0 24 24"><path d="M12 3l6 8-6 10-6-10zM12 14v-3M9 21h6"/></svg></button>
   </div>
   <div class="line" id="line">
     <h1 class="headline" id="headline" contenteditable="plaintext-only" spellcheck="false" aria-label="Type a word"></h1>
@@ -330,6 +343,7 @@ function applyHead(s) {
   $('headName').style.fontFamily = face(s) + ',system-ui';
   $('headName').textContent = s.family;
   exportIcon();
+  penOff();
 }
 function applyPara(f) {
   para = { name: f.name, styles: f.styles, reg: f.name === para?.name ? para.reg : undefined }; store.set('para', para);
@@ -743,6 +757,207 @@ $('liga').addEventListener('click', e => {
   e.currentTarget.setAttribute('aria-pressed', on);
 });
 
+
+/* ---------- Pen: a full-screen editor for the headline's outlines (Google fonts only) ----------
+   Idea after otherkind.design's wordmark. Outlines come from the font's static .woff on Fontsource, parsed
+   with opentype.js; both load on first use. Wheel zooms, Space/middle-drag pans, edits are throwaway. */
+
+var pen = null;                       // { segs, orig, twin, sel:Set, cur, drag, z, tx, ty, el }
+const penFonts = new Map();
+function penFont(s) {
+  if (!penFonts.has(s.ps)) penFonts.set(s.ps, (async () => {
+    if (!window.opentype) await new Promise((ok, no) => document.head.append(Object.assign(document.createElement('script'),
+      { src: 'https://cdn.jsdelivr.net/npm/opentype.js@1.3.4/dist/opentype.min.js', onload: ok, onerror: no })));
+    const id = s.family.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const res = await fetch(`https://cdn.jsdelivr.net/fontsource/fonts/${id}@latest/latin-${s.w}-${s.it ? 'italic' : 'normal'}.woff`);
+    if (!res.ok) throw 0;
+    return opentype.parse(await res.arrayBuffer());
+  })().catch(e => { penFonts.delete(s.ps); throw e; }));
+  return penFonts.get(s.ps);
+}
+
+function penOff() {
+  if (!pen) return;
+  removeEventListener('keydown', pen.keys);
+  removeEventListener('keyup', pen.keys);
+  pen.el.remove();
+  pen = null;
+}
+
+const pt = (x, y) => ({ x, y });
+const copy = v => JSON.parse(JSON.stringify(v));
+// World coordinates are the font outline at 200px; the view maps them to the screen (screen = world * z + t).
+const sx = (v, x) => x * v.z + v.tx, sy = (v, y) => y * v.z + v.ty;
+
+function penDraw() {
+  const v = pen, { segs, sel, cur, drag } = pen;
+  const X = q => sx(v, q.x), Y = q => sy(v, q.y);
+  const w = q => !cur ? 0 : Math.max(0, Math.min(1, 1 - (Math.hypot(X(q) - cur.x, Y(q) - cur.y) - 30) / 40));   // fades 30 -> 70px
+  let d = '', h = '';
+  segs.forEach((s, i) => {
+    if (s.t === 'Z') return (d += 'Z');
+    d += s.t === 'C' ? `C${X(s.c1)} ${Y(s.c1)} ${X(s.c2)} ${Y(s.c2)} ${X(s.p)} ${Y(s.p)}` : `${s.t}${X(s.p)} ${Y(s.p)}`;
+    const prev = segs.slice(0, i).reverse().find(q => q.t !== 'Z');
+    const mark = (k, q, a, from) => {
+      const on = sel.has(i + ':' + k), o = on ? 1 : a;
+      if (o <= 0) return;
+      if (from) h += `<line class="ln" x1="${X(from)}" y1="${Y(from)}" x2="${X(q)}" y2="${Y(q)}" opacity="${o}"/>`;
+      h += k === 'p' ? `<rect class="h${on ? ' on' : ''}" x="${X(q) - 5}" y="${Y(q) - 5}" width="10" height="10" opacity="${o}"/>`
+                     : `<circle class="h${on ? ' on' : ''}" cx="${X(q)}" cy="${Y(q)}" r="5" opacity="${o}"/>`;
+    };
+    if (s.t === 'C') { mark('c1', s.c1, w(s.c1), prev?.p); mark('c2', s.c2, w(s.c2), s.p); }
+    mark('p', s.p, w(s.p));
+  });
+  if (drag?.kind === 'marquee') h += `<rect class="mq" x="${Math.min(drag.o.x, cur.x)}" y="${Math.min(drag.o.y, cur.y)}" width="${Math.abs(cur.x - drag.o.x)}" height="${Math.abs(cur.y - drag.o.y)}"/>`;
+  const el = pen.el;
+  el.querySelector('.glyphs').setAttribute('d', d);
+  el.querySelector('.handles').innerHTML = h;
+  const base = el.querySelector('.base');
+  base.setAttribute('y1', sy(v, 0)); base.setAttribute('y2', sy(v, 0));
+  // Grid: a world step that stays 14-40px on screen, with a stronger line every 5th.
+  let st = 10;
+  while (st * v.z < 14) st *= 2;
+  while (st * v.z > 40) st /= 2;
+  const m = st * v.z, line = (a, c) => `linear-gradient(${a},${c} 1px,transparent 1px)`;
+  const minor = 'color-mix(in srgb,var(--fg) 7%,transparent)', major = 'color-mix(in srgb,var(--fg) 14%,transparent)';
+  Object.assign(el.style, {
+    backgroundImage: [line('to bottom', major), line('to right', major), line('to bottom', minor), line('to right', minor)].join(),
+    backgroundSize: `${m * 5}px ${m * 5}px,${m * 5}px ${m * 5}px,${m}px ${m}px,${m}px ${m}px`,
+    backgroundPosition: `${v.tx}px ${v.ty}px`
+  });
+  el.querySelector('.zoom').textContent = Math.round(v.z / v.fit * 100) + '%';
+}
+
+// Every editable point as [key, point]. A closed contour's last anchor sits on its first, so they move together.
+function penPoints() {
+  const out = [];
+  pen.segs.forEach((s, i) => { if (s.t === 'Z') return; out.push([i + ':p', s.p]); if (s.t === 'C') out.push([i + ':c1', s.c1], [i + ':c2', s.c2]); });
+  return out;
+}
+function penMove(dx, dy) {                                  // world units
+  const { segs, sel, twin } = pen, move = new Set(sel);
+  for (const k of sel) {
+    if (!k.endsWith(':p')) continue;
+    const i = +k.split(':')[0];
+    for (const j of [i, twin[i]]) {
+      if (j === undefined) continue;
+      move.add(j + ':p');                                   // the anchor drags its own handles along
+      if (segs[j].t === 'C') move.add(j + ':c2');
+      if (segs[j + 1]?.t === 'C') move.add((j + 1) + ':c1');
+    }
+  }
+  for (const k of move) { const [i, f] = k.split(':'); const q = f === 'p' ? segs[i].p : segs[i][f]; q.x += dx; q.y += dy; }
+}
+
+async function penOn() {
+  if (pen || !head?.g || !headline.textContent) return;
+  let font;
+  try { font = await penFont(head); } catch { return msg('Couldn’t load outlines for this font.'); }
+  closeDrawer();
+  headline.blur();
+  const L = body.classList.contains('liga');
+  const path = font.getPath(headline.textContent, 0, 0, 200, { features: { liga: L, rlig: L, clig: L } });
+  const segs = [];
+  let c = pt(0, 0);
+  for (const k of path.commands) {
+    if (k.type === 'Z') segs.push({ t: 'Z' });
+    else if (k.type === 'Q') {          // TrueType quadratic -> cubic, so every curve has two handles
+      segs.push({ t: 'C', c1: pt(c.x + 2 / 3 * (k.x1 - c.x), c.y + 2 / 3 * (k.y1 - c.y)), c2: pt(k.x + 2 / 3 * (k.x1 - k.x), k.y + 2 / 3 * (k.y1 - k.y)), p: pt(k.x, k.y) });
+      c = pt(k.x, k.y);
+    } else if (k.type === 'C') { segs.push({ t: 'C', c1: pt(k.x1, k.y1), c2: pt(k.x2, k.y2), p: pt(k.x, k.y) }); c = pt(k.x, k.y); }
+    else { segs.push({ t: k.type, p: pt(k.x, k.y) }); c = pt(k.x, k.y); }
+  }
+  const twin = {};
+  let start = -1;
+  segs.forEach((s, i) => {
+    if (s.t === 'M') start = i;
+    else if (s.t === 'Z' && start >= 0) {
+      const last = i - 1;
+      if (segs[last].t !== 'M' && Math.hypot(segs[last].p.x - segs[start].p.x, segs[last].p.y - segs[start].p.y) < .5) { twin[last] = start; twin[start] = last; }
+    }
+  });
+
+  const el = document.createElement('div');
+  el.className = 'penEd';
+  el.innerHTML = '<svg><line class="base" x1="0" x2="100%"/><path class="glyphs"/><g class="handles"/></svg>'
+    + '<div class="penBar"><button class="chip" data-a="done">Done</button><button class="chip" data-a="reset">Reset</button>'
+    + '<button class="chip" data-a="fit">Fit</button><span class="zoom"></span></div>'
+    + '<p class="penHint">Scroll to zoom · Space + drag to pan · Shift-click to select more · Esc to close</p>';
+  document.body.append(el);
+
+  const bb = path.getBoundingBox(), W = innerWidth, H = innerHeight;
+  const fit = Math.min(W * .8 / Math.max(1, bb.x2 - bb.x1), H * .5 / Math.max(1, bb.y2 - bb.y1));
+  const home = { z: fit, tx: W / 2 - fit * (bb.x1 + bb.x2) / 2, ty: H / 2 - fit * (bb.y1 + bb.y2) / 2 };
+  pen = { segs, twin, sel: new Set(), cur: null, drag: null, orig: copy(segs), el, fit, ...home, space: false };
+
+  pen.keys = e => {
+    if (e.code === 'Space') { pen.space = e.type === 'keydown'; e.preventDefault(); }
+    else if (e.type === 'keydown' && e.key === 'Escape') penOff();
+  };
+  addEventListener('keydown', pen.keys);
+  addEventListener('keyup', pen.keys);
+
+  el.querySelector('.penBar').addEventListener('click', e => {
+    const a = e.target.closest('[data-a]')?.dataset.a;
+    if (a === 'done') penOff();
+    else if (a === 'reset') { pen.segs = copy(pen.orig); pen.sel = new Set(); penDraw(); }
+    else if (a === 'fit') { Object.assign(pen, home); penDraw(); }
+  });
+
+  const svg = el.querySelector('svg');
+  const at = e => pt(e.clientX, e.clientY);
+  const world = q => pt((q.x - pen.tx) / pen.z, (q.y - pen.ty) / pen.z);
+  el.addEventListener('wheel', e => {
+    e.preventDefault();
+    const q = at(e), f = Math.max(pen.fit * .2, Math.min(pen.fit * 60, pen.z * Math.exp(-Math.sign(e.deltaY) * Math.min(Math.abs(e.deltaY), 100) * .0015)));
+    const w = world(q);                                      // keep the point under the cursor fixed
+    pen.z = f; pen.tx = q.x - w.x * f; pen.ty = q.y - w.y * f;
+    penDraw();
+  }, { passive: false });
+  svg.addEventListener('pointerdown', e => {
+    svg.setPointerCapture(e.pointerId);
+    pen.cur = at(e);
+    if (e.button === 1 || e.button === 2 || pen.space) { pen.drag = { kind: 'pan' }; return; }
+    if (e.button) return;
+    const hit = penPoints().map(([k, q]) => [k, Math.hypot(sx(pen, q.x) - pen.cur.x, sy(pen, q.y) - pen.cur.y)])
+      .filter(([, d]) => d <= 14).sort((a, b) => a[1] - b[1])[0];
+    if (hit) {
+      const k = hit[0];
+      if (e.shiftKey) pen.sel.has(k) ? pen.sel.delete(k) : pen.sel.add(k);
+      else if (!pen.sel.has(k)) pen.sel = new Set([k]);
+      pen.drag = { kind: 'move' };
+    } else {
+      if (!e.shiftKey) pen.sel = new Set();
+      pen.drag = { kind: 'marquee', o: pen.cur };
+    }
+    penDraw();
+  });
+  svg.addEventListener('pointermove', e => {
+    const prev = pen.cur;
+    pen.cur = at(e);
+    const dx = pen.cur.x - prev.x, dy = pen.cur.y - prev.y;
+    if (pen.drag?.kind === 'move') penMove(dx / pen.z, dy / pen.z);
+    else if (pen.drag?.kind === 'pan') { pen.tx += dx; pen.ty += dy; }
+    penDraw();
+  });
+  const up = () => {
+    if (pen?.drag?.kind === 'marquee') {
+      const { o } = pen.drag, c = pen.cur;
+      for (const [k, q] of penPoints()) {
+        const x = sx(pen, q.x), y = sy(pen, q.y);
+        if (x >= Math.min(o.x, c.x) && x <= Math.max(o.x, c.x) && y >= Math.min(o.y, c.y) && y <= Math.max(o.y, c.y)) pen.sel.add(k);
+      }
+    }
+    if (pen) { pen.drag = null; penDraw(); }
+  };
+  svg.addEventListener('pointerup', up);
+  svg.addEventListener('pointercancel', up);
+  svg.addEventListener('contextmenu', e => e.preventDefault());
+  svg.addEventListener('pointerleave', () => { if (pen && !pen.drag) { pen.cur = null; penDraw(); } });
+  penDraw();
+}
+$('pen').addEventListener('click', penOn);
+
 // Save the headline's font file, or for a Google font, open its page on Google Fonts.
 const ICONS = {
   download: '<svg viewBox="0 0 24 24"><path d="M12 4v11m-5-5 5 5 5-5M5 19h14"/></svg>',
@@ -751,6 +966,7 @@ const ICONS = {
 function exportIcon() {
   $('export').innerHTML = ICONS[head?.g ? 'external' : 'download'];
   $('export').title = head?.g ? 'Open on Google Fonts' : 'Download this font file';
+  $('pen').hidden = !head?.g;     // outlines are only editable for Google (open-licence) fonts
 }
 $('export').addEventListener('click', async () => {
   if (!head) return openDrawer('head');
