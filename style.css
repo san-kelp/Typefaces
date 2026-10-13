@@ -91,7 +91,7 @@ button,input{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .blk:hover .ctl,.blk:focus-within .ctl{display:flex}
 .ctl>*{background:var(--rec-bg);box-shadow:var(--rec);height:30px;width:30px}
 /* Wikipedia credit: as light as the "Type + ↵" hint, pinned to the bottom centre */
-.credit{position:fixed;left:50%;bottom:32px;transform:translateX(-50%);z-index:2;font:14px/1.4 system-ui,sans-serif;color:var(--fg);opacity:.4;white-space:nowrap;transition:opacity .3s}
+.credit{position:fixed;right:24px;bottom:24px;max-width:calc(100vw - 48px);text-align:right;overflow:hidden;text-overflow:ellipsis;z-index:2;font:14px/1.4 system-ui,sans-serif;color:var(--fg);opacity:.4;white-space:nowrap;transition:opacity .3s}
 .credit:hover{opacity:.8}
 .credit[hidden]{display:none}
 .credit a{color:inherit;text-decoration:underline;text-underline-offset:2px}
