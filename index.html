@@ -60,6 +60,7 @@ button,input{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .hint.on{opacity:.4}
 
 /* Keys: hard-edged, recessed */
+.pill[hidden]{display:none}
 .pill{display:flex;gap:14px;opacity:0;pointer-events:none;transition:opacity .4s}
 .typed .pill{opacity:.35;pointer-events:auto}
 .typed .stage:hover .pill,.typed .pill:focus-within,.drawer-open .pill{opacity:1}
@@ -153,7 +154,7 @@ button,input{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
     <h1 class="headline" id="headline" contenteditable="plaintext-only" spellcheck="false" aria-label="Type a word"></h1>
     <span class="ibeam" id="ibeam" aria-hidden="true"></span>
   </div>
-  <div class="pill" id="paraPill">
+  <div class="pill" id="paraPill" hidden>
     <button class="chip" id="paraName" title="Change paragraph font">Paragraph</button>
     <button class="chip icon" id="closeArticle" title="Hide article">×</button>
   </div>
@@ -477,6 +478,7 @@ function showArticle(on) {
   if (credit) credit.hidden = !on;
   $('openArticle').hidden = on || !result.childElementCount;
   $('closeArticle').hidden = !on;
+  $('paraPill').hidden = !on || !result.childElementCount;   // paragraph key only once text has loaded
 }
 $('closeArticle').addEventListener('click', () => showArticle(false));
 $('openArticle').addEventListener('click', () => showArticle(true));
@@ -554,8 +556,7 @@ function buildWheel(jumpToCurrent) {
   tick = at;                          // no click for the starting position
   layout();
   draw();
-  if (!jumpToCurrent) pick();
-  else showStyles(true);
+  showStyles(true);                   // typing in search only filters; fonts change when you turn the dial
 }
 
 function draw() {
