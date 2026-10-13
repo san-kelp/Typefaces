@@ -63,13 +63,18 @@ button,input{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .pill[hidden],.chip[hidden]{display:none}
 /* Pen editor: a full-screen layer with a grid that follows the zoom */
 .penEd{position:fixed;inset:0;z-index:100;background-color:var(--bg);touch-action:none;cursor:default;overflow:hidden}
-.penEd svg{position:absolute;inset:0;width:100%;height:100%}
+.penEd>svg{position:absolute;inset:0;width:100%;height:100%}
 .penEd .glyphs{fill:var(--fg)}
 .penEd .h{fill:var(--bg);stroke:var(--fg);stroke-width:1.5}
 .penEd .h.on{fill:var(--accent);stroke:var(--accent)}
 .penEd .ln{stroke:var(--accent);stroke-width:1.5}
 .penEd .base{stroke:var(--accent);stroke-width:1;opacity:.5}
 .penEd .mq{fill:rgba(31,69,255,.1);stroke:var(--accent);stroke-dasharray:4 2}
+.penEd .rl{pointer-events:none;font-size:10px;fill:var(--mute)}
+.penEd .rl rect{fill:var(--chip)}
+.penEd .rl line{stroke:var(--mute);stroke-width:1}
+.penEd .rl .cur{stroke:var(--accent)}
+.penEd.ruled .penBar{top:42px}
 .penBar{position:absolute;left:24px;top:24px;display:flex;gap:14px;align-items:center}
 .penBar .zoom{font-size:13px;color:var(--mute);min-width:48px}
 .penNote{position:fixed;left:50%;bottom:64px;transform:translateX(-50%);z-index:101;font-size:14px;opacity:.6;white-space:nowrap}
@@ -81,7 +86,7 @@ button,input{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .chip.icon{width:50px;padding:0;display:grid;place-items:center;color:var(--mute)}
 .chip.icon:hover{color:var(--fg)}
 .chip svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-#liga[aria-pressed="true"],#snap[aria-pressed="true"]{background:linear-gradient(var(--accent-lo),var(--accent));color:#fff;box-shadow:inset 3px 4px 8px rgba(0,0,30,.35),inset 1px 1px 2px rgba(0,0,30,.3)}
+#liga[aria-pressed="true"],#snap[aria-pressed="true"],#ruler[aria-pressed="true"]{background:linear-gradient(var(--accent-lo),var(--accent));color:#fff;box-shadow:inset 3px 4px 8px rgba(0,0,30,.35),inset 1px 1px 2px rgba(0,0,30,.3)}
 .inactive,.inactive .headline{color:var(--dim)}
 
 /* Article */
@@ -834,6 +839,23 @@ function penDraw() {
     backgroundSize: `${m * 5}px ${m * 5}px,${m * 5}px ${m * 5}px,${m}px ${m}px,${m}px ${m}px`,
     backgroundPosition: `${v.tx}px ${v.ty}px`
   });
+  // Rulers: ticks at the grid step, labelled in font units every 5th, plus the cursor's position.
+  let rl = '';
+  if (v.ruler) {
+    const W = innerWidth, H = innerHeight, B = 22;
+    rl = `<rect width="${W}" height="${B}"/><rect width="${B}" height="${H}"/>`;
+    for (let k = Math.ceil((B - v.tx) / v.z / st); k * st * v.z + v.tx < W; k++) {
+      const x = k * st * v.z + v.tx, big = k % 5 === 0;
+      rl += `<line x1="${x}" x2="${x}" y1="${big ? 6 : 14}" y2="${B}"/>` + (big ? `<text x="${x + 3}" y="11">${Math.round(k * st)}</text>` : '');
+    }
+    for (let k = Math.ceil((B - v.ty) / v.z / st); k * st * v.z + v.ty < H; k++) {
+      const y = k * st * v.z + v.ty, big = k % 5 === 0;
+      rl += `<line y1="${y}" y2="${y}" x1="${big ? 6 : 14}" x2="${B}"/>` + (big ? `<text transform="translate(10 ${y - 3}) rotate(-90)">${Math.round(-k * st)}</text>` : '');
+    }
+    if (cur) rl += `<line class="cur" x1="${cur.x}" x2="${cur.x}" y1="0" y2="${B}"/><line class="cur" y1="${cur.y}" y2="${cur.y}" x1="0" x2="${B}"/>`;
+  }
+  el.querySelector('.rl').innerHTML = rl;
+  el.classList.toggle('ruled', !!v.ruler);
   el.querySelector('.zoom').textContent = Math.round(v.z / v.fit * 100) + '%';
 }
 
@@ -888,9 +910,10 @@ async function penOn() {
 
   const el = document.createElement('div');
   el.className = 'penEd';
-  el.innerHTML = '<svg><line class="base" x1="0" x2="100%"/><path class="glyphs"/><g class="handles"/></svg>'
+  el.innerHTML = '<svg><line class="base" x1="0" x2="100%"/><path class="glyphs"/><g class="handles"/><g class="rl"/></svg>'
     + '<div class="penBar"><button class="chip" data-a="done">Done</button><button class="chip" data-a="reset">Reset</button>'
     + '<button class="chip" data-a="fit">Fit</button>'
+    + '<button class="chip icon" id="ruler" data-a="ruler" aria-pressed="false" title="Rulers"><svg viewBox="0 0 24 24"><path d="M3 8h18v8H3zM7 8v3M11 8v4M15 8v3M19 8v4"/></svg></button>'
     + '<button class="chip icon" id="snap" data-a="snap" aria-pressed="false" title="Snap to grid"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM4 12h16M12 4v16"/></svg></button><span class="zoom"></span></div>'
     + '<p class="penHint">Scroll to zoom · Space + drag to pan · Shift-click to select more · Esc to close</p>';
   document.body.append(el);
@@ -912,6 +935,7 @@ async function penOn() {
     if (a === 'done') penOff();
     else if (a === 'reset') { pen.segs = copy(pen.orig); pen.sel = new Set(); penDraw(); }
     else if (a === 'fit') { Object.assign(pen, home); penDraw(); }
+    else if (a === 'ruler') { pen.ruler = !pen.ruler; el.querySelector('#ruler').setAttribute('aria-pressed', !!pen.ruler); penDraw(); }
     else if (a === 'snap') { pen.snap = !pen.snap; el.querySelector('#snap').setAttribute('aria-pressed', pen.snap); }
   });
 
