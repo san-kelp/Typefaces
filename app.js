@@ -629,8 +629,9 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') return closeDrawer();
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {       // Ctrl/Cmd+K: jump to the search field
     e.preventDefault();                                              // (the browser's own Ctrl+K would go to its search bar)
-    $('dq').focus();
-    $('dq').select();
+    const q = $('dq'), focusIt = () => { q.focus(); q.select(); };
+    focusIt();
+    if (document.activeElement !== q) setTimeout(focusIt, 700);          // the controls fade in after the disc lands; focus fails while they're hidden
     return;
   }
   const typing = e.target === $('dq');
