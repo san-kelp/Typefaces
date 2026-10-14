@@ -667,6 +667,39 @@ function penPoints() {
 }
 const penPt = k => { const [i, f] = k.split(':'); return f === 'p' ? pen.segs[i].p : pen.segs[i][f]; };
 
+// Which handles are shown (and so pickable). Anchors are always there; a handle appears when it is selected, when
+// its anchor is selected, or when the pointer is within SHOW px of it or of its anchor. Fonts have a point every
+// few pixels, so drawing every handle at once buried the outline (and made points impossible to hit).
+const SHOW = 60;
+function penOwner(i) {                              // the anchor a segment's c1 hangs off: the previous point
+  for (let j = i - 1; j >= 0; j--) if (pen.segs[j].t !== 'Z') return j;
+  return -1;
+}
+function penShown(i, f, q) {
+  const { segs, sel, twin } = pen;
+  if (sel.has(i + ':' + f)) return true;
+  const o = f === 'c2' ? i : penOwner(i);
+  if (o >= 0 && (sel.has(o + ':p') || (twin[o] !== undefined && sel.has(twin[o] + ':p')))) return true;
+  if (!q || o < 0) return false;
+  const h = segs[i][f], a = segs[o].p;
+  return Math.hypot(sx(pen, h.x) - q.x, sy(pen, h.y) - q.y) < SHOW || Math.hypot(sx(pen, a.x) - q.x, sy(pen, a.y) - q.y) < SHOW;
+}
+// The point a press at screen position q would grab: [key, score] or undefined. The nearest wins, with a small
+// bias toward anchors so a handle that merely sits close to an anchor doesn't steal the click.
+function penHit(q) {
+  let best = null;
+  pen.segs.forEach((s, i) => {
+    if (s.t === 'Z') return;
+    const test = (f, r, bias) => {
+      const p = f === 'p' ? s.p : s[f], d = Math.hypot(sx(pen, p.x) - q.x, sy(pen, p.y) - q.y);
+      if (d <= r && (!best || d + bias < best[1])) best = [i + ':' + f, d + bias];
+    };
+    test('p', s.imp ? 7 : 10, 0);
+    if (s.t === 'C') for (const f of ['c1', 'c2']) if (penShown(i, f, q)) test(f, 9, 3);
+  });
+  return best || undefined;
+}
+
 // Redraws are coalesced to one per animation frame (pointer events can arrive faster than that).
 function penDraw(hoverOnly) {                       // hoverOnly: just the cursor moved, so the outline needs no rebuild
   if (!pen) return;
@@ -696,12 +729,13 @@ function penPaint(full = true) {
     pen.col = { fg: cs.getPropertyValue('--fg').trim(), bg: cs.getPropertyValue('--bg').trim(), ac: cs.getPropertyValue('--accent').trim() };
   }
   const { fg, bg, ac } = pen.col;
-  let cursor = '';
+  let cursor = '', hv = null;
   if (!v.hide) {
     ctx.lineWidth = 1.5;
     // the outline a press would bend (or add a point to)
     if (cur && !drag && !pen.draft) {
-      const near = penPoints().some(([, q]) => Math.hypot(X(q) - cur.x, Y(q) - cur.y) <= 7);
+      hv = penHit(cur);
+      const near = !!hv;
       const shp = penShapeAt(cur), sg = !near && !(shp && sel.has(shp.keys[0])) && penSegAt(cur, 6);
       cursor = !near && !sg && !pen.draw && shp ? 'move' : '';
       if (sg) {
@@ -718,21 +752,38 @@ function penPaint(full = true) {
     segs.forEach((s, i) => {
       if (s.t !== 'C') return;
       const a = prevPoint(segs, i);
-      ctx.moveTo(X(a), Y(a)); ctx.lineTo(X(s.c1), Y(s.c1));
-      ctx.moveTo(X(s.p), Y(s.p)); ctx.lineTo(X(s.c2), Y(s.c2));
+      if (penShown(i, 'c1', cur)) { ctx.moveTo(X(a), Y(a)); ctx.lineTo(X(s.c1), Y(s.c1)); }
+      if (penShown(i, 'c2', cur)) { ctx.moveTo(X(s.p), Y(s.p)); ctx.lineTo(X(s.c2), Y(s.c2)); }
     });
     ctx.stroke();
+    const dots = [];                                   // anchors implied by the font's own curve structure: small dots
     for (const on of [false, true]) {
       ctx.fillStyle = on ? ac : bg; ctx.strokeStyle = on ? ac : fg;
       ctx.beginPath();                                   // squares: anchors
-      segs.forEach((s, i) => { if (s.t !== 'Z' && sel.has(i + ':p') === on) ctx.rect(X(s.p) - 5, Y(s.p) - 5, 10, 10); });
+      segs.forEach((s, i) => {
+        if (s.t === 'Z' || sel.has(i + ':p') !== on) return;
+        if (s.imp && !on && !(cur && Math.hypot(X(s.p) - cur.x, Y(s.p) - cur.y) < 30)) { dots.push(s.p); return; }
+        ctx.rect(X(s.p) - 5, Y(s.p) - 5, 10, 10);
+      });
       ctx.fill(); ctx.stroke();
       ctx.beginPath();                                   // circles: curve handles
       segs.forEach((s, i) => {
         if (s.t !== 'C') return;
-        for (const k of ['c1', 'c2']) if (sel.has(i + ':' + k) === on) { ctx.moveTo(X(s[k]) + 5, Y(s[k])); ctx.arc(X(s[k]), Y(s[k]), 5, 0, 6.2832); }
+        for (const k of ['c1', 'c2']) {
+          if (sel.has(i + ':' + k) !== on || !penShown(i, k, cur)) continue;
+          ctx.moveTo(X(s[k]) + 5, Y(s[k])); ctx.arc(X(s[k]), Y(s[k]), 5, 0, 6.2832);
+        }
       });
       ctx.fill(); ctx.stroke();
+    }
+    if (dots.length) {
+      ctx.fillStyle = fg; ctx.beginPath();
+      for (const p of dots) { ctx.moveTo(X(p) + 2.5, Y(p)); ctx.arc(X(p), Y(p), 2.5, 0, 6.2832); }
+      ctx.fill();
+    }
+    if (hv) {                                          // a ring on the point a press would grab
+      const q = penPt(hv[0]);
+      ctx.strokeStyle = ac; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(X(q), Y(q), 10, 0, 6.2832); ctx.stroke(); ctx.lineWidth = 1.5;
     }
     // the shape being drawn, with a rubber band to the cursor
     if (pen.draft?.pts.length) {
@@ -1081,7 +1132,7 @@ async function penOn() {
   const segs = [];
   let gi = 0;
   font.forEachGlyph(text, 0, 0, 200, { features: { liga: L, rlig: L, clig: L } }, (glyph, x, y, size) => {
-    let c = pt(0, 0);
+    let c = pt(0, 0), prevCtrl = null;               // prevCtrl: the off-curve point of the quadratic just before
     const add = o => { o.g = gi; segs.push(o); };
     const same = (px, py) => Math.hypot(px - c.x, py - c.y) < .5;      // under half a pixel at 200px: no room for a handle
     for (const k of glyph.getPath(x, y, size).commands) {
@@ -1090,10 +1141,12 @@ async function penOn() {
         || (k.type === 'C' && same(k.x, k.y) && same(k.x1, k.y1) && same(k.x2, k.y2))) continue;
       if (k.type === 'Z') add({ t: 'Z' });
       else if (k.type === 'Q') {        // TrueType quadratic -> cubic, so every curve has two handles
+        if (prevCtrl && Math.hypot((prevCtrl.x + k.x1) / 2 - c.x, (prevCtrl.y + k.y1) / 2 - c.y) < .01) segs[segs.length - 1].imp = true;
+        prevCtrl = pt(k.x1, k.y1);
         add({ t: 'C', c1: pt(c.x + 2 / 3 * (k.x1 - c.x), c.y + 2 / 3 * (k.y1 - c.y)), c2: pt(k.x + 2 / 3 * (k.x1 - k.x), k.y + 2 / 3 * (k.y1 - k.y)), p: pt(k.x, k.y) });
         c = pt(k.x, k.y);
-      } else if (k.type === 'C') { add({ t: 'C', c1: pt(k.x1, k.y1), c2: pt(k.x2, k.y2), p: pt(k.x, k.y) }); c = pt(k.x, k.y); }
-      else { add({ t: k.type, p: pt(k.x, k.y) }); c = pt(k.x, k.y); }
+      } else if (k.type === 'C') { prevCtrl = null; add({ t: 'C', c1: pt(k.x1, k.y1), c2: pt(k.x2, k.y2), p: pt(k.x, k.y) }); c = pt(k.x, k.y); }
+      else { prevCtrl = null; add({ t: k.type, p: pt(k.x, k.y) }); c = pt(k.x, k.y); }
     }
     gi++;
   });
@@ -1257,8 +1310,7 @@ async function penOn() {
   const svg = el.querySelector('svg');
   const at = e => pt(e.clientX, e.clientY);
   const world = q => pt((q.x - pen.tx) / pen.z, (q.y - pen.ty) / pen.z);
-  const hit = (q, r = 7) => penPoints().map(([k, p]) => [k, Math.hypot(sx(pen, p.x) - q.x, sy(pen, p.y) - q.y)])
-    .filter(([, d]) => d <= r).sort((a, b) => a[1] - b[1])[0];
+  const hit = penHit;
   el.addEventListener('wheel', e => {
     if (e.target.closest('.penKeys')) return;           // let the shortcuts drawer scroll itself
     e.preventDefault();
