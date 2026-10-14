@@ -1,5 +1,9 @@
 // One small line icon per Google tag, 24x24, stroke only. Keys are the tag names after the group (Expressive/Calm -> Calm).
 const TAG_ICON = {
+  // Style
+  Serif: 'M5 19h5M14 19h5M7.5 19 12 5l4.5 14M9.5 14h5',
+  'Sans Serif': 'M6 19l6-14 6 14M8.5 14h7',
+  Calligraphy: 'M12 3l5 9-5 9-5-9zM12 3v18M12 12v.01',
   // Feeling
   Active: 'M13 3 5 14h6l-1 7 8-11h-6z',
   Artistic: 'M12 3a9 9 0 1 0 0 18c1.2 0 2-.8 2-1.8 0-.5-.2-.9-.5-1.3-.3-.3-.5-.7-.5-1.1 0-.9.7-1.6 1.6-1.6H17a4 4 0 0 0 4-4c0-4.4-4-8.2-9-8.2zM7.5 11h.01M10 7.5h.01M14 7.5h.01',

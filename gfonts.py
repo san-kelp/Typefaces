@@ -4,11 +4,14 @@
 import csv, io, json, urllib.request
 GROUPS = ('Expressive', 'Theme', 'Seasonal', 'Monospace')    # Feeling = Expressive; Appearance = the rest
 MIN = 50
+STYLE = ('Style/Serif', 'Style/Sans Serif', 'Style/Calligraphy')   # derived: from category/stroke and the Script tags
+CALLIGRAPHY = ('/Script/Formal', '/Script/Upright Script')
 
 def get(url): return urllib.request.urlopen(url).read().decode()
 
 t = get('https://fonts.google.com/metadata/fonts')
 d = json.loads(t[t.index('{'):])
+meta = {f['family']: (f.get('category'), f.get('stroke')) for f in d['familyMetadataList']}
 fams = sorted(([f['family'], ','.join(f['fonts'])] for f in d['familyMetadataList']
                if 'latin' in f['subsets'] and not f['family'].startswith('Material') and 'icon' not in f['family'].lower()),
               key=lambda x: x[0].lower())
@@ -16,11 +19,21 @@ fams = sorted(([f['family'], ','.join(f['fonts'])] for f in d['familyMetadataLis
 rows = [r for r in csv.reader(io.StringIO(get('https://raw.githubusercontent.com/google/fonts/main/tags/all/families.csv'))) if len(r) == 4]
 tags = sorted({r[2] for r in rows if r[2].split('/')[1] in GROUPS and float(r[3]) >= MIN},
               key=lambda s: (GROUPS.index(s.split('/')[1]), s))
+tags = ['/' + t for t in STYLE] + tags
 ix = {t: i for i, t in enumerate(tags)}
 by = {}
 for fam, _, tag, score in rows:
     if tag in ix and float(score) >= MIN:
         by.setdefault(fam, []).append(ix[tag])
+
+calligraphy = {fam for fam, _, tag, score in rows if tag in CALLIGRAPHY and float(score) >= MIN}
+for fam, (category, stroke) in meta.items():
+    if stroke in ('Serif', 'Slab Serif') or category == 'Serif':
+        by.setdefault(fam, []).append(ix['/Style/Serif'])
+    elif stroke == 'Sans Serif' or category == 'Sans Serif':
+        by.setdefault(fam, []).append(ix['/Style/Sans Serif'])
+    if fam in calligraphy:
+        by.setdefault(fam, []).append(ix['/Style/Calligraphy'])
 
 out = {'tags': [t.lstrip('/') for t in tags], 'f': [[n, v, sorted(by.get(n, []))] for n, v in fams]}
 

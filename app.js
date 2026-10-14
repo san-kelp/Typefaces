@@ -57,9 +57,10 @@ async function ensureGoogle() {
 }
 
 // Tag filters, as on fonts.google.com: tags in one group widen the result (any of them), groups narrow it (all of them).
-// Feeling = Google's "Expressive" tags; Appearance = Theme + Seasonal + Monospace.
+// Style = serif / sans / calligraphy (derived from Google's category, stroke and Script tags); Feeling = its "Expressive" tags;
+// Appearance = Theme + Seasonal + Monospace.
 const fsel = new Set();                              // selected tag indexes
-const fgroup = t => (gtags[t].startsWith('Expressive/') ? 'Feeling' : 'Appearance');
+const fgroup = t => (gtags[t].startsWith('Style/') ? 'Style' : gtags[t].startsWith('Expressive/') ? 'Feeling' : 'Appearance');
 function tagMatch(f) {
   if (!fsel.size) return true;
   const need = new Set([...fsel].map(fgroup));
@@ -70,13 +71,22 @@ function buildFilters() {
   if (!gtags.length || +$('fPanel').dataset.n === gtags.length) return;     // nothing loaded yet, or already built
   $('fPanel').dataset.n = gtags.length;
   const chip = (t, i) => `<button class="tag" data-t="${i}" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="${TAG_ICON[t.split('/')[1]] || ''}"/></svg><span>${esc(t.split('/')[1])}</span></button>`;
-  const sec = g => `<section><h6>${g}</h6><div class="fgrid">` + gtags.map((t, i) => fgroup(i) === g ? chip(t, i) : '').join('') + '</div></section>';
-  $('fPanel').innerHTML = sec('Feeling') + sec('Appearance') + '<button class="fclear">Clear filters</button>';
+  const chev = '<svg class="chev" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 8l5 5 5-5"/></svg>';
+  const sec = g => `<details class="fsec" data-g="${g}" open><summary><span>${g}</span><b class="fcount"></b>${chev}</summary><div class="fgrid">`
+    + gtags.map((t, i) => fgroup(i) === g ? chip(t, i) : '').join('') + '</div></details>';
+  $('fPanel').innerHTML = '<div class="fhead"><span>Filters</span><button class="fclear" aria-label="Clear filters" title="Clear filters" disabled>'
+    + '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"/></svg></button></div>'
+    + sec('Style') + sec('Feeling') + sec('Appearance');
 }
 function syncFilters() {
   $('fPanel').querySelectorAll('.tag').forEach(b => b.setAttribute('aria-pressed', fsel.has(+b.dataset.t)));
   $('fLabel').textContent = fsel.size ? `Filters · ${fsel.size}` : 'Filters';
   $('fBtn').classList.toggle('on', fsel.size > 0);
+  const per = { Style: 0, Feeling: 0, Appearance: 0 };
+  for (const t of fsel) per[fgroup(t)]++;
+  $('fPanel').querySelectorAll('.fsec').forEach(d => { d.querySelector('.fcount').textContent = per[d.dataset.g] || ''; });
+  const clr = $('fPanel').querySelector('.fclear');
+  if (clr) clr.disabled = !fsel.size;
 }
 $('fBtn').addEventListener('click', () => {
   buildFilters();
