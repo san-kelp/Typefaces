@@ -629,6 +629,7 @@ function penOff() {
   removeEventListener('keydown', pen.keys);
   removeEventListener('keyup', pen.keys);
   removeEventListener('resize', pen.size);
+  if (pen.raf) cancelAnimationFrame(pen.raf);
   pen.el.remove();
   pen = null;
 }
@@ -686,7 +687,11 @@ function penPaint() {
 
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, innerWidth, innerHeight);
-  const cs = getComputedStyle(el), fg = cs.getPropertyValue('--fg').trim(), bg = cs.getPropertyValue('--bg').trim(), ac = cs.getPropertyValue('--accent').trim();
+  if (!pen.col) {                                      // read once; the theme toggle clears it
+    const cs = getComputedStyle(el);
+    pen.col = { fg: cs.getPropertyValue('--fg').trim(), bg: cs.getPropertyValue('--bg').trim(), ac: cs.getPropertyValue('--accent').trim() };
+  }
+  const { fg, bg, ac } = pen.col;
   let cursor = '';
   if (!v.hide) {
     ctx.lineWidth = 1.5;
@@ -865,8 +870,8 @@ function penDelete() {
 
 // Point at t on the cubic a -> p with handles c1, c2.
 const bez = (a, c1, c2, p, t) => {
-  const u = 1 - t, k = [u * u * u, 3 * u * u * t, 3 * u * t * t, t * t * t];
-  return pt(k[0] * a.x + k[1] * c1.x + k[2] * c2.x + k[3] * p.x, k[0] * a.y + k[1] * c1.y + k[2] * c2.y + k[3] * p.y);
+  const u = 1 - t, k0 = u * u * u, k1 = 3 * u * u * t, k2 = 3 * u * t * t, k3 = t * t * t;
+  return pt(k0 * a.x + k1 * c1.x + k2 * c2.x + k3 * p.x, k0 * a.y + k1 * c1.y + k2 * c2.y + k3 * p.y);
 };
 
 // The segment nearest a screen point, within `r` px: { d, i, t }. Samples each segment, which is plenty for picking.
@@ -915,19 +920,29 @@ function penInsertAt(best) {
   return best.i + ':p';
 }
 
-// Double-click an anchor: with handles -> corner (handles retract); without -> smooth (handles line up with its neighbours).
+// Double-click an anchor: a smooth point (handles on both sides, in line) goes sharp; anything else goes smooth.
+// An existing handle keeps its direction and length; a missing one is created, lined up opposite it.
 function penSmooth(i) {
   const { segs } = pen, P = segs[i].p, { a, b } = penLinks(i);
   if (a === undefined || !segs[b] || segs[b].t === 'Z') return;
   const A = prevPoint(segs, a), B = segs[b].p;
+  const hi = segs[a].t === 'C' ? segs[a].c2 : null, ho = segs[b].t === 'C' ? segs[b].c1 : null;
+  const live = h => h && dist(h, P) > .01;
+  const unit = (x, y) => { const l = Math.hypot(x, y) || 1; return pt(x / l, y / l); };
+  let smooth = false;
+  if (live(hi) && live(ho)) {
+    const u = unit(hi.x - P.x, hi.y - P.y), v = unit(ho.x - P.x, ho.y - P.y);
+    smooth = Math.abs(u.x * v.y - u.y * v.x) < .05 && u.x * v.x + u.y * v.y < 0;
+  }
   penSave();
-  const has = (segs[a].t === 'C' && dist(segs[a].c2, P) > .01) || (segs[b].t === 'C' && dist(segs[b].c1, P) > .01);
   const toC = (j, c1, c2) => { segs[j] = { t: 'C', c1, c2, p: segs[j].p, g: segs[j].g }; };
-  if (has) {
-    if (segs[a].t === 'C') segs[a].c2 = copy(P); else toC(a, copy(A), copy(P));
-    if (segs[b].t === 'C') segs[b].c1 = copy(P); else toC(b, copy(P), copy(B));
+  if (smooth) {
+    segs[a].c2 = copy(P); segs[b].c1 = copy(P);
   } else {
-    const len = dist(A, B) || 1, d = pt((B.x - A.x) / len, (B.y - A.y) / len), li = dist(P, A) / 3, lo = dist(P, B) / 3;
+    const into = live(hi) ? unit(P.x - hi.x, P.y - hi.y) : null;        // direction of travel arriving at P
+    const out = live(ho) ? unit(ho.x - P.x, ho.y - P.y) : null;         // and leaving it
+    const d = into && out ? unit(into.x + out.x, into.y + out.y) : into || out || unit(B.x - A.x, B.y - A.y);
+    const li = live(hi) ? dist(hi, P) : dist(P, A) / 3, lo = live(ho) ? dist(ho, P) : dist(P, B) / 3;
     const hin = pt(P.x - d.x * li, P.y - d.y * li), hout = pt(P.x + d.x * lo, P.y + d.y * lo);
     if (segs[a].t === 'C') segs[a].c2 = hin; else toC(a, copy(A), hin);
     if (segs[b].t === 'C') segs[b].c1 = hout; else toC(b, hout, copy(B));
@@ -1051,9 +1066,11 @@ var penBusy = false;                                // set while the font loads,
 async function penOn() {
   if (pen || penBusy || !head?.g) return;
   penBusy = true;
+  const wanted = head;
   let font;
   try { font = await penFont(head); } catch { penBusy = false; return penNote('Couldn’t load outlines for this font. Try another weight.'); }
   penBusy = false;
+  if (head !== wanted) return;                      // another font was picked while this one loaded
   closeDrawer();
   headline.blur();
   const L = body.classList.contains('liga'), text = headline.textContent || head.family;
@@ -1062,7 +1079,7 @@ async function penOn() {
   font.forEachGlyph(text, 0, 0, 200, { features: { liga: L, rlig: L, clig: L } }, (glyph, x, y, size) => {
     let c = pt(0, 0);
     const add = o => { o.g = gi; segs.push(o); };
-    const same = (px, py) => Math.hypot(px - c.x, py - c.y) < .01;
+    const same = (px, py) => Math.hypot(px - c.x, py - c.y) < .5;      // under half a pixel at 200px: no room for a handle
     for (const k of glyph.getPath(x, y, size).commands) {
       // Fonts repeat points: a segment that starts and ends on the same spot has no room for a handle, so drop it.
       if ((k.type === 'L' && same(k.x, k.y)) || (k.type === 'Q' && same(k.x, k.y) && same(k.x1, k.y1))
@@ -1172,7 +1189,7 @@ async function penOn() {
   const tuck = () => showKeys(false);
   let tucked = false;
   const tuckOnce = e => { if (tucked || e.target.closest?.('.penKeys')) return; tucked = true; tuck(); };
-  keys.querySelector('[data-a="help"]').addEventListener('click', tuck);
+  keys.querySelector('[data-a="help"]').addEventListener('click', e => { e.currentTarget.blur(); tuck(); });
   el.querySelector('svg').addEventListener('pointerdown', tuckOnce);
   el.addEventListener('wheel', tuckOnce, { passive: true });
   const toggle = (key, id) => { pen[key] = !pen[key]; el.querySelector('#' + id).setAttribute('aria-pressed', pen[key]); penDraw(); };
@@ -1181,24 +1198,27 @@ async function penOn() {
   const tip = Object.assign(document.createElement('div'), { className: 'penTip', hidden: true });
   el.append(tip);
   const bar = el.querySelector('.penBar');
+  let noteUntil = 0, noteTimer;
+  const place = cx => {                                // centred on cx, just above the toolbar, kept inside the window
+    tip.style.left = Math.max(12, Math.min(innerWidth - tip.offsetWidth - 12, cx - tip.offsetWidth / 2)) + 'px';
+    tip.style.bottom = innerHeight - bar.getBoundingClientRect().top + 10 + 'px';
+  };
   const showTip = e => {
     const b = e.target.closest?.('[data-tip]');
-    tip.hidden = !b;
-    if (!b) return;
+    if (!b) { if (Date.now() > noteUntil) tip.hidden = true; return; }     // gaps in the toolbar don't dismiss a notice
+    clearTimeout(noteTimer); noteUntil = 0;                                 // a hover label takes over from a notice
     tip.textContent = b.dataset.tip;
-    const r = b.getBoundingClientRect(), top = bar.getBoundingClientRect().top;
-    tip.style.left = Math.max(12, Math.min(innerWidth - tip.offsetWidth - 12, r.left + r.width / 2 - tip.offsetWidth / 2)) + 'px';
-    tip.style.bottom = innerHeight - top + 10 + 'px';
+    tip.hidden = false;
+    const r = b.getBoundingClientRect();
+    place(r.left + r.width / 2);
   };
-  let noteUntil = 0, noteTimer;
-  pen.say = t => {                                     // notices (copied, nothing selected...) use the same box, centred over the toolbar
+  pen.say = t => {                                     // notices (copied, nothing selected...) use the same box, over the toolbar centre
     clearTimeout(noteTimer);
     noteUntil = Date.now() + 2200;
     tip.textContent = t;
     tip.hidden = false;
     const br = bar.getBoundingClientRect();
-    tip.style.left = Math.max(12, Math.min(innerWidth - tip.offsetWidth - 12, br.left + br.width / 2 - tip.offsetWidth / 2)) + 'px';
-    tip.style.bottom = innerHeight - br.top + 10 + 'px';
+    place(br.left + br.width / 2);
     noteTimer = setTimeout(() => { tip.hidden = true; }, 2200);
   };
   const hideTip = () => { if (Date.now() > noteUntil) tip.hidden = true; };
@@ -1207,6 +1227,7 @@ async function penOn() {
   bar.addEventListener('pointerleave', hideTip);
   bar.addEventListener('focusout', hideTip);
   el.querySelector('.penBar').addEventListener('click', e => {
+    if (e.detail) e.target.closest('button')?.blur();     // mouse click: hand the keyboard back to the editor
     const a = e.target.closest('[data-a]')?.dataset.a;
     if (a === 'reset') { penSave(); penReplace(copy(pen.orig)); }
     else if (a === 'fit') { Object.assign(pen, home); penDraw(); }
@@ -1243,6 +1264,7 @@ async function penOn() {
   svg.addEventListener('pointerdown', e => {
     svg.setPointerCapture(e.pointerId);
     pen.cur = at(e);
+    pen.press = pen.cur;
     if (e.button === 1 || e.button === 2 || pen.space) { pen.drag = { kind: 'pan' }; return; }
     if (e.button || pen.hide) return;                   // while previewing, only zoom and pan
     const now = performance.now(), L = pen.last;
@@ -1298,7 +1320,13 @@ async function penOn() {
   svg.addEventListener('pointermove', e => {
     const prev = pen.cur || at(e);
     pen.cur = at(e);
-    const dx = pen.cur.x - prev.x, dy = pen.cur.y - prev.y;
+    let dx = pen.cur.x - prev.x, dy = pen.cur.y - prev.y;
+    const g0 = pen.drag;
+    if (g0 && (g0.kind === 'move' || g0.kind === 'curve') && !g0.go) {
+      if (Math.hypot(pen.cur.x - pen.press.x, pen.cur.y - pen.press.y) < 4) return penDraw();   // still a click
+      g0.go = true;
+      dx = pen.cur.x - pen.press.x; dy = pen.cur.y - pen.press.y;                                // the travel so far counts
+    }
     if (pen.drag && pen.last && Math.hypot(pen.cur.x - pen.last.x, pen.cur.y - pen.last.y) > 6) pen.last = null;   // it was a drag, not a click
     if (pen.drag?.kind === 'move' && (dx || dy)) {
       const g = pen.drag, w = g.want, s = pen.snap ? pen.st : 0;
@@ -1384,7 +1412,11 @@ const syncTheme = () => {
   $('light').title = on ? 'Light mode' : 'Dark mode';
 };
 syncTheme();
-$('light').addEventListener('click', () => { store.set('dark', body.classList.toggle('dark')); syncTheme(); });
+$('light').addEventListener('click', () => {
+  store.set('dark', body.classList.toggle('dark'));
+  syncTheme();
+  if (pen) { pen.col = null; penDraw(); }            // repaint the editor's canvas in the new colours
+});
 
 /* ---------- Start ---------- */
 
