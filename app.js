@@ -38,22 +38,23 @@ function face(s, text) {
   return faces.get(key);
 }
 
-// Google Fonts catalogue (gfonts.json, refreshed with gfonts.py), loaded the first time the tab is used.
+// Google Fonts catalogue (gfonts.v2.json, refreshed with gfonts.py), loaded the first time the tab is used.
 const WN = {100:'Thin',200:'ExtraLight',300:'Light',400:'Regular',500:'Medium',600:'SemiBold',700:'Bold',800:'ExtraBold',900:'Black'};
 let gfamilies = null;
-let gtags = [];                                     // 'Expressive/Calm', 'Theme/Techno', ...: Google's own tags, in gfonts.json
+let gtags = [];                                     // 'Expressive/Calm', 'Theme/Techno', ...: Google's own tags, in gfonts.v2.json
 async function ensureGoogle() {
   if (gfamilies) return true;
   try {
-    const data = await (await fetch('gfonts.json')).json();
+    const data = await (await fetch('gfonts.v2.json')).json();
     gtags = data.tags;
+    buildFilters(); syncFilters();                  // the panel may already be open, showing 'Loading filters…'
     gfamilies = data.f.map(([name, vs, tg], i) => ({ name, i, tags: tg, styles: vs.split(',').map(v => {
       const w = parseInt(v), it = v.endsWith('i');
       return { g: true, ps: `g:${name}:${v}`, family: name, w, it,
         style: it ? (w === 400 ? 'Italic' : WN[w] + ' Italic') : WN[w] || String(w) };
     }) }));
     return true;
-  } catch { return msg('Couldn’t load the Google Fonts list. Check your connection.'); }
+  } catch { $('fBtn').hidden = true; return msg('Couldn’t load the Google Fonts list. Check your connection.'); }
 }
 
 // Tag filters, as on fonts.google.com: tags in one group widen the result (any of them), groups narrow it (all of them).
@@ -61,16 +62,20 @@ async function ensureGoogle() {
 // Appearance = Theme + Seasonal + Monospace.
 const fsel = new Set();                              // selected tag indexes
 const fgroup = t => (gtags[t].startsWith('Style/') ? 'Style' : gtags[t].startsWith('Expressive/') ? 'Feeling' : 'Appearance');
-function tagMatch(f) {
-  if (!fsel.size) return true;
-  const need = new Set([...fsel].map(fgroup));
+function tagMatch(f, need) {                         // need: the groups with a selection, from buildWheel
+  if (!need.size) return true;
   for (const g of need) if (!f.tags.some(t => fsel.has(t) && fgroup(t) === g)) return false;
   return true;
 }
 function buildFilters() {
-  if (!gtags.length || +$('fPanel').dataset.n === gtags.length) return;     // nothing loaded yet, or already built
+  if (!gtags.length) {                                                       // not loaded yet: say so; ensureGoogle rebuilds
+    $('fPanel').innerHTML = '<div class="fhead"><span>Loading filters…</span></div>';
+    delete $('fPanel').dataset.n;
+    return;
+  }
+  if (+$('fPanel').dataset.n === gtags.length) return;                       // already built
   $('fPanel').dataset.n = gtags.length;
-  const chip = (t, i) => `<button class="tag" data-t="${i}" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="${TAG_ICON[t.split('/')[1]] || ''}"/></svg><span>${esc(t.split('/')[1])}</span></button>`;
+  const chip = (t, i) => `<button class="tag" data-t="${i}" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="${(typeof TAG_ICON === 'undefined' ? {} : TAG_ICON)[t.split('/')[1]] || ''}"/></svg><span>${esc(t.split('/')[1])}</span></button>`;
   const chev = '<svg class="chev" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 8l5 5 5-5"/></svg>';
   const sec = g => `<details class="fsec" data-g="${g}" open><summary><span>${g}</span><b class="fcount"></b>${chev}</summary><div class="fgrid">`
     + gtags.map((t, i) => fgroup(i) === g ? chip(t, i) : '').join('') + '</div></details>';
@@ -410,6 +415,7 @@ document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click
 }));
 function closeDrawer() {
   target = null;
+  clearTimeout(wShowT);                 // the weights card's 300ms timer must not outlive the drawer
   body.classList.remove('drawer-open', 'wopen');
   $('line').classList.remove('inactive');
   result.classList.remove('inactive');
@@ -442,13 +448,15 @@ function buildWheel(jumpToCurrent) {
   body.classList.remove('nolist');
   const q = $('dq').value.trim().toLowerCase();
   const all = src === 'google' ? gfamilies : families.filter(f => !f.sys).length ? families.filter(f => !f.sys) : families;
-  list = all.filter(f => (!q || f.name.toLowerCase().includes(q)) && (src !== 'google' || tagMatch(f)));
+  const need = new Set([...fsel].map(fgroup));
+  list = all.filter(f => (!q || f.name.toLowerCase().includes(q)) && (src !== 'google' || tagMatch(f, need)));
   body.classList.toggle('nolist', !list.length);
   $('dCount').textContent = `${list.length.toLocaleString()} famil${list.length === 1 ? 'y' : 'ies'}`;
   nodes.forEach(el => el.remove()); nodes.clear();
   const cur = target === 'head' ? head?.family : para?.name;
-  const at = jumpToCurrent ? Math.max(0, list.findIndex(f => f.name === cur)) : 0;
-  pos = goal = at; vel = 0; picked = jumpToCurrent ? at : -1;
+  const idx = jumpToCurrent ? list.findIndex(f => f.name === cur) : -1;       // -1: the current font isn't in this list
+  const at = Math.max(0, idx);
+  pos = goal = at; vel = 0; picked = idx;
   tick = at;                          // no click for the starting position
   layout();
   draw();

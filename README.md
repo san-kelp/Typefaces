@@ -39,8 +39,8 @@ Opening `index.html` straight from disk won't work: the page loads its data with
 |---|---|
 | `index.html`, `style.css`, `app.js` | the page, its styles and all its logic |
 | `tagicons.js` | one small line icon per filter tag |
-| `gfonts.json` | the Google Fonts list with tags (generated, see below) |
-| `gfonts.py` | rebuilds `gfonts.json` |
+| `gfonts.v2.json` | the Google Fonts list with tags (generated, see below) |
+| `gfonts.py` | rebuilds `gfonts.v2.json` |
 | `.github/workflows/refresh-fonts.yml` | runs `gfonts.py` daily and commits the file if it changed |
 
 ### Updating the Google Fonts list

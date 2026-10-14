@@ -1,4 +1,6 @@
-# Refresh gfonts.json from Google's public catalogue: python gfonts.py
+# Refresh gfonts.v2.json from Google's public catalogue: python gfonts.py
+# The file name carries the data layout's version: bump it (and app.js) whenever the layout changes, so a browser
+# or CDN holding an old copy can never be paired with code that expects a new one.
 # Family list: fonts.google.com/metadata/fonts. Tags (the Feeling / Appearance filters on fonts.google.com):
 # tags/all/families.csv in github.com/google/fonts, a 0-100 score per family and tag; we keep scores of 50 and up.
 import csv, io, json, urllib.request
@@ -41,5 +43,5 @@ out = {'tags': [t.lstrip('/') for t in tags], 'f': [[n, v, sorted(by.get(n, []))
 tagged = sum(1 for f in out['f'] if f[2])
 if len(fams) < 1000 or len(tags) < 30 or tagged < 1000:
     raise SystemExit(f'refusing to write: {len(fams)} families, {len(tags)} tags, {tagged} tagged')
-open('gfonts.json', 'w', encoding='utf8').write(json.dumps(out, separators=(',', ':')))
+open('gfonts.v2.json', 'w', encoding='utf8').write(json.dumps(out, separators=(',', ':')))
 print(len(fams), 'families,', len(tags), 'tags,', sum(1 for f in out['f'] if f[2]), 'tagged')
