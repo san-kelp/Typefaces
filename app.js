@@ -41,10 +41,13 @@ function face(s, text) {
 // Google Fonts catalogue (gfonts.json, refreshed with gfonts.py), loaded the first time the tab is used.
 const WN = {100:'Thin',200:'ExtraLight',300:'Light',400:'Regular',500:'Medium',600:'SemiBold',700:'Bold',800:'ExtraBold',900:'Black'};
 let gfamilies = null;
+let gtags = [];                                     // 'Expressive/Calm', 'Theme/Techno', ...: Google's own tags, in gfonts.json
 async function ensureGoogle() {
   if (gfamilies) return true;
   try {
-    gfamilies = (await (await fetch('gfonts.json')).json()).map(([name, vs], i) => ({ name, i, styles: vs.split(',').map(v => {
+    const data = await (await fetch('gfonts.json')).json();
+    gtags = data.tags;
+    gfamilies = data.f.map(([name, vs, tg], i) => ({ name, i, tags: tg, styles: vs.split(',').map(v => {
       const w = parseInt(v), it = v.endsWith('i');
       return { g: true, ps: `g:${name}:${v}`, family: name, w, it,
         style: it ? (w === 400 ? 'Italic' : WN[w] + ' Italic') : WN[w] || String(w) };
@@ -52,6 +55,43 @@ async function ensureGoogle() {
     return true;
   } catch { return msg('Couldn’t load the Google Fonts list. Check your connection.'); }
 }
+
+// Tag filters, as on fonts.google.com: tags in one group widen the result (any of them), groups narrow it (all of them).
+// Feeling = Google's "Expressive" tags; Appearance = Theme + Seasonal + Monospace.
+const fsel = new Set();                              // selected tag indexes
+const fgroup = t => (gtags[t].startsWith('Expressive/') ? 'Feeling' : 'Appearance');
+function tagMatch(f) {
+  if (!fsel.size) return true;
+  const need = new Set([...fsel].map(fgroup));
+  for (const g of need) if (!f.tags.some(t => fsel.has(t) && fgroup(t) === g)) return false;
+  return true;
+}
+function buildFilters() {
+  if ($('fPanel').childElementCount) return;
+  const sec = g => `<section><h6>${g}</h6><div class="fgrid">` + gtags.map((t, i) => fgroup(i) === g
+    ? `<button class="tag" data-t="${i}" aria-pressed="false">${esc(t.split('/')[1])}</button>` : '').join('') + '</div></section>';
+  $('fPanel').innerHTML = sec('Feeling') + sec('Appearance') + '<button class="fclear">Clear filters</button>';
+}
+function syncFilters() {
+  $('fPanel').querySelectorAll('.tag').forEach(b => b.setAttribute('aria-pressed', fsel.has(+b.dataset.t)));
+  $('fBtn').textContent = fsel.size ? `Filters · ${fsel.size}` : 'Filters';
+  $('fBtn').classList.toggle('on', fsel.size > 0);
+}
+$('fBtn').addEventListener('click', () => {
+  buildFilters();
+  const open = $('fPanel').hidden;
+  $('fPanel').hidden = !open;
+  $('fBtn').setAttribute('aria-expanded', open);
+  syncFilters();
+});
+$('fPanel').addEventListener('click', e => {
+  const t = e.target.closest('.tag');
+  if (t) fsel.has(+t.dataset.t) ? fsel.delete(+t.dataset.t) : fsel.add(+t.dataset.t);
+  else if (e.target.closest('.fclear')) fsel.clear();
+  else return;
+  syncFilters();
+  buildWheel(false);                                 // filtering only narrows the list; it never changes the font
+});
 
 // Style name -> rough weight. Order matters (extra-bold before bold).
 const W = [[/hairline|thin/i,100],[/extra ?light|ultra ?light|ext ?lt|xlight/i,200],[/light/i,300],[/medium/i,500],
@@ -322,6 +362,8 @@ async function loadSource() {
   $('dMsg').hidden = true;
   document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-pressed', b.dataset.src === src));
   $('dq').placeholder = src === 'google' ? 'Search Google Fonts' : 'Search my fonts';
+  $('fBtn').hidden = src !== 'google';
+  if (src !== 'google') { $('fPanel').hidden = true; $('fBtn').setAttribute('aria-expanded', false); }
   if (src === 'mine' && !families) {
     // Nothing to show until the browser has been allowed to read installed fonts, so the dial stays empty and asks.
     const granted = 'queryLocalFonts' in window && await navigator.permissions.query({ name: 'local-fonts' }).then(p => p.state === 'granted', () => false);
@@ -389,7 +431,8 @@ function buildWheel(jumpToCurrent) {
   body.classList.remove('nolist');
   const q = $('dq').value.trim().toLowerCase();
   const all = src === 'google' ? gfamilies : families.filter(f => !f.sys).length ? families.filter(f => !f.sys) : families;
-  list = all.filter(f => !q || f.name.toLowerCase().includes(q));
+  list = all.filter(f => (!q || f.name.toLowerCase().includes(q)) && (src !== 'google' || tagMatch(f)));
+  body.classList.toggle('nolist', !list.length);
   $('dCount').textContent = `${list.length.toLocaleString()} famil${list.length === 1 ? 'y' : 'ies'}`;
   nodes.forEach(el => el.remove()); nodes.clear();
   const cur = target === 'head' ? head?.family : para?.name;
@@ -551,7 +594,7 @@ $('wcard').addEventListener('wheel', e => {
 // The weights card keeps its own scrolling.
 let snapT;
 addEventListener('wheel', e => {
-  if (!target || inside(e, '.wcard')) return;
+  if (!target || inside(e, '.wcard') || inside(e, '.fpanel')) return;
   e.preventDefault();
   const d = e.deltaY || e.deltaX;
   if (isNotch(e)) return go(Math.round(goal) + Math.sign(d));
