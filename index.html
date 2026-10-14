@@ -56,6 +56,16 @@
 <!-- Weights: shown only when the family has more than one style -->
 <aside class="wcard dial-ui" id="wcard" aria-label="Weights"><h6 id="wCount"></h6><div class="wwin" id="wwin"><div class="wlist" id="wlist"></div></div></aside>
 
+<!-- Phones: this is a mouse-and-big-screen tool, so say so up front (dismissable) -->
+<div class="deskNote" id="deskNote" role="dialog" aria-labelledby="deskTitle" hidden>
+  <div class="deskCard">
+    <h2 id="deskTitle">Best on a desktop</h2>
+    <p>Type Library reads the fonts installed on your computer and is built for a mouse and a wide screen. Open this link on a desktop or laptop to use it properly.</p>
+    <button class="deskGo" id="deskShare">Send myself the link</button>
+    <button class="deskSkip" id="deskSkip">Continue anyway</button>
+  </div>
+</div>
+
 <script src="tagicons.js"></script>
 <script src="app.js"></script>
 </body>

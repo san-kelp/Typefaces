@@ -1539,3 +1539,19 @@ if (head) applyHead(head);
 if (para) applyPara(para);
 layout();
 fit();
+
+/* ---------- Phone notice ----------
+   Phones can't read installed fonts and the dial and editor want a mouse. Tell people once per visit, offer to send the
+   link to themselves (the share sheet, or a copy), and let them carry on if they like. */
+if (matchMedia('(pointer: coarse) and (max-width: 700px)').matches && !sessionStorage.getItem('tl.deskSkip')) {
+  const note = $('deskNote');
+  note.hidden = false;
+  $('deskSkip').addEventListener('click', () => { note.hidden = true; try { sessionStorage.setItem('tl.deskSkip', '1'); } catch {} });
+  $('deskShare').addEventListener('click', async () => {
+    const data = { title: 'Type Library', text: 'Open this on a desktop:', url: location.href };
+    try {
+      if (navigator.share) await navigator.share(data);
+      else { await navigator.clipboard.writeText(location.href); $('deskShare').textContent = 'Link copied'; }
+    } catch {}                                          // a cancelled share sheet is not an error
+  });
+}

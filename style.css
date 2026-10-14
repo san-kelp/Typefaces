@@ -183,3 +183,12 @@ body.nolist #selBar,body.nolist #pointer{display:none}
 .tag[aria-pressed="true"]{background:linear-gradient(var(--accent-lo),var(--accent));color:#fff}
 .fclear{margin-top:16px;width:100%;height:36px;border-radius:6px;font-size:13px;color:var(--mute);background:var(--rec-bg);box-shadow:var(--rec)}
 .fclear:hover{color:var(--fg)}
+
+/* Phone notice */
+.deskNote{position:fixed;inset:0;z-index:300;display:grid;place-items:center;padding:24px;background:var(--bg)}
+.deskNote[hidden]{display:none}
+.deskCard{width:min(360px,100%);padding:28px 24px;border-radius:6px;background:var(--obj-bg);box-shadow:var(--obj);text-align:center}
+.deskCard h2{margin:0 0 12px;font-size:20px}
+.deskCard p{margin:0 0 22px;font-size:14px;line-height:1.5;color:var(--mute)}
+.deskGo{width:100%;height:44px;border-radius:999px;font-size:14px;color:#fff;background:linear-gradient(var(--accent-lo),var(--accent))}
+.deskSkip{margin-top:14px;font-size:13px;color:var(--mute);text-decoration:underline;text-underline-offset:3px}
