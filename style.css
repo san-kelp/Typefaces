@@ -211,3 +211,6 @@ body.nolist #selBar,body.nolist #pointer{display:none}
 .fcount:empty{display:none}
 .chev{width:16px;height:16px;fill:none;stroke:var(--mute);stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;transition:transform .2s}
 .fsec:not([open]) .chev{transform:rotate(-90deg)}
+
+/* A class that sets `display` (like .chip.icon) must not be able to override the hidden attribute. */
+[hidden]{display:none!important}
