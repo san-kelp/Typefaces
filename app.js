@@ -383,6 +383,7 @@ async function loadSource() {
   document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-pressed', b.dataset.src === src));
   $('dq').placeholder = src === 'google' ? 'Search Google Fonts' : 'Search my fonts';
   $('fBtn').hidden = src !== 'google';
+  syncPen();
   if (src !== 'google') { $('fPanel').hidden = true; $('fBtn').setAttribute('aria-expanded', false); }
   if (src === 'mine' && !families) {
     // Nothing to show until the browser has been allowed to read installed fonts, so the dial stays empty and asks.
@@ -421,6 +422,7 @@ function closeDrawer() {
   target = null;
   clearTimeout(wShowT);                 // the weights card's 300ms timer must not outlive the drawer
   body.classList.remove('drawer-open', 'wopen');
+  syncPen();
   $('line').classList.remove('inactive');
   result.classList.remove('inactive');
 }
@@ -1535,7 +1537,12 @@ const ICONS = {
 function exportIcon() {
   $('export').innerHTML = ICONS[head?.g ? 'external' : 'download'];
   $('export').title = head?.g ? 'Open on Google Fonts' : 'Download this font file';
-  $('pen').hidden = !head?.g;     // outlines are only editable for Google (open-licence) fonts
+  syncPen();
+}
+// The outline editor is for Google (open-licence) fonts only, so its key is hidden for installed fonts,
+// and also while the dial is showing the My fonts list.
+function syncPen() {
+  $('pen').hidden = !head?.g || (body.classList.contains('drawer-open') && src === 'mine');
 }
 $('export').addEventListener('click', async () => {
   if (!head) return openDrawer('head');
