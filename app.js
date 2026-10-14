@@ -547,9 +547,15 @@ function pick() {
 const WROW = 44, WMID = 3;            // row height; the selected row sits in the 4th of 7 visible slots
 let wFamily = null, wIndex = 0;
 function currentStyle() { return target === 'head' ? head?.ps : para && paraReg(para).ps; }
+let wShowT;
 function showStyles(rebuild) {
   const f = list[picked];
-  body.classList.toggle('wopen', !!f && f.styles.length > 1);
+  clearTimeout(wShowT);
+  if (!f || f.styles.length < 2) body.classList.remove('wopen');
+  else if (rebuild && wFamily !== f) {              // a different font: show its weights only once the dial has rested on it
+    body.classList.remove('wopen');
+    wShowT = setTimeout(() => body.classList.add('wopen'), 300);
+  } else body.classList.add('wopen');
   if (!f) return;
   if (rebuild || wFamily !== f) {
     wFamily = f;
