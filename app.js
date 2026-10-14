@@ -76,7 +76,7 @@ function buildFilters() {
     + gtags.map((t, i) => fgroup(i) === g ? chip(t, i) : '').join('') + '</div></details>';
   $('fPanel').innerHTML = '<div class="fhead"><span>Filters</span><button class="fclear" aria-label="Clear filters" title="Clear filters" disabled>'
     + '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"/></svg></button></div>'
-    + sec('Style') + sec('Feeling') + sec('Appearance');
+    + '<div class="fbody">' + sec('Style') + sec('Feeling') + sec('Appearance') + '</div>';
 }
 function syncFilters() {
   $('fPanel').querySelectorAll('.tag').forEach(b => b.setAttribute('aria-pressed', fsel.has(+b.dataset.t)));

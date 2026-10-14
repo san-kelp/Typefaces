@@ -181,7 +181,7 @@ body.nolist #selBar,body.nolist #pointer{display:none}
 #dq:-webkit-autofill,#dq:-webkit-autofill:hover,#dq:-webkit-autofill:focus{-webkit-text-fill-color:var(--fg);caret-color:var(--fg);transition:background-color 600000s 0s}
 #dq::selection{background:color-mix(in srgb,var(--accent) 25%,transparent)}
 .search:has(.fbtn[hidden]) #dq{padding-right:22px}
-.fpanel{position:absolute;left:0;top:100%;margin-top:12px;width:100%;max-height:calc(100vh - 300px);overflow:auto;padding:16px;border-radius:6px;background:var(--obj-bg);box-shadow:var(--obj)}
+.fpanel{position:absolute;left:0;top:100%;margin-top:12px;width:100%;max-height:calc(100vh - 300px);display:flex;flex-direction:column;overflow:hidden;border-radius:6px;background:var(--obj-bg);box-shadow:var(--obj)}
 .fpanel[hidden]{display:none}
 .fgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .tag{display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:6px;font-size:13px;color:var(--fg);background:var(--rec-bg);box-shadow:var(--rec);text-align:left}
@@ -197,7 +197,8 @@ body.nolist #selBar,body.nolist #pointer{display:none}
 .deskCard p{margin:0 0 22px;font-size:14px;line-height:1.5;color:var(--mute)}
 .deskGo{width:100%;height:44px;border-radius:999px;font-size:14px;color:#fff;background:linear-gradient(var(--accent-lo),var(--accent))}
 .deskSkip{margin-top:14px;font-size:13px;color:var(--mute);text-decoration:underline;text-underline-offset:3px}
-.fhead{display:flex;align-items:center;justify-content:space-between;margin:0 0 12px;font-size:13px;font-weight:600}
+.fhead{flex:none;display:flex;align-items:center;justify-content:space-between;padding:14px 16px 12px;font-size:13px;font-weight:600;border-bottom:1px solid color-mix(in srgb,var(--fg) 8%,transparent)}
+.fbody{flex:1;min-height:0;overflow:auto;padding:14px 16px 16px}
 .fclear{width:30px;height:30px;display:grid;place-items:center;border-radius:999px;color:var(--mute);background:var(--rec-bg);box-shadow:var(--rec)}
 .fclear svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .fclear:not(:disabled):hover{color:var(--fg)}
