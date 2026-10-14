@@ -668,22 +668,26 @@ function penPoints() {
 const penPt = k => { const [i, f] = k.split(':'); return f === 'p' ? pen.segs[i].p : pen.segs[i][f]; };
 
 // Redraws are coalesced to one per animation frame (pointer events can arrive faster than that).
-function penDraw() {
-  if (!pen || pen.raf) return;
-  pen.raf = requestAnimationFrame(() => { if (pen) { pen.raf = 0; penPaint(); } });
+function penDraw(hoverOnly) {                       // hoverOnly: just the cursor moved, so the outline needs no rebuild
+  if (!pen) return;
+  if (!hoverOnly) pen.full = true;
+  if (pen.raf) return;
+  pen.raf = requestAnimationFrame(() => { if (pen) { pen.raf = 0; const full = pen.full; pen.full = false; penPaint(full); } });
 }
 
 // The outline is one SVG path; points, handles and previews are painted on a canvas, because thousands of SVG
 // nodes rebuilt on every pointer move is what made long words janky.
-function penPaint() {
+function penPaint(full = true) {
   const v = pen, { segs, sel, cur, drag, el, cv, ctx, dpr } = pen;
   const X = q => sx(v, q.x), Y = q => sy(v, q.y);
-  let d = '';
-  for (const s of segs) {
-    if (s.t === 'Z') d += 'Z';
-    else d += s.t === 'C' ? `C${X(s.c1)} ${Y(s.c1)} ${X(s.c2)} ${Y(s.c2)} ${X(s.p)} ${Y(s.p)}` : `${s.t}${X(s.p)} ${Y(s.p)}`;
+  if (full) {
+    let d = '';
+    for (const s of segs) {
+      if (s.t === 'Z') d += 'Z';
+      else d += s.t === 'C' ? `C${X(s.c1)} ${Y(s.c1)} ${X(s.c2)} ${Y(s.c2)} ${X(s.p)} ${Y(s.p)}` : `${s.t}${X(s.p)} ${Y(s.p)}`;
+    }
+    el.querySelector('.glyphs').setAttribute('d', d);
   }
-  el.querySelector('.glyphs').setAttribute('d', d);
 
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, innerWidth, innerHeight);
@@ -1133,6 +1137,8 @@ async function penOn() {
   };
   pen.size();
   addEventListener('resize', pen.size);
+  const watchDpr = () => matchMedia(`(resolution: ${devicePixelRatio}dppx)`).addEventListener('change', () => { if (pen) { pen.size(); watchDpr(); } }, { once: true });
+  watchDpr();
 
   el.querySelector('#snap').setAttribute('aria-pressed', 'true');      // snap starts on
   const setDraw = on => {
@@ -1351,7 +1357,7 @@ async function penOn() {
         q.hin = pt(2 * q.p.x - w.x, 2 * q.p.y - w.y);
       }
     } else if (pen.drag?.kind === 'pan') { pen.tx += dx; pen.ty += dy; }
-    penDraw();
+    penDraw(!pen.drag);
   });
   const up = () => {
     if (pen?.drag?.kind === 'marquee') {
