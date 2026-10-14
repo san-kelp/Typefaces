@@ -161,11 +161,12 @@ body.nolist #selBar,body.nolist #pointer{display:none}
 .search:has(.fbtn[hidden]) #dq{padding-right:22px}
 .fpanel{position:absolute;left:0;top:100%;margin-top:12px;width:100%;max-height:calc(100vh - 300px);overflow:auto;padding:16px;border-radius:6px;background:var(--obj-bg);box-shadow:var(--obj)}
 .fpanel[hidden]{display:none}
-.fpanel h6{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;margin:0 0 10px}
-.fpanel h6 svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.fpanel h6{font-size:13px;font-weight:600;margin:0 0 10px}
 .fpanel section+section{margin-top:18px}
 .fgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.tag{padding:9px 6px;border-radius:6px;font-size:13px;color:var(--fg);background:var(--rec-bg);box-shadow:var(--rec);text-align:center}
+.tag{display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:6px;font-size:13px;color:var(--fg);background:var(--rec-bg);box-shadow:var(--rec);text-align:left}
+.tag svg{flex:none;width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;opacity:.75}
+.tag[aria-pressed="true"] svg{opacity:1}
 .tag[aria-pressed="true"]{background:linear-gradient(var(--accent-lo),var(--accent));color:#fff}
 .fclear{margin-top:16px;width:100%;height:36px;border-radius:6px;font-size:13px;color:var(--mute);background:var(--rec-bg);box-shadow:var(--rec)}
 .fclear:hover{color:var(--fg)}

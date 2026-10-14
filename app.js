@@ -67,11 +67,10 @@ function tagMatch(f) {
   return true;
 }
 function buildFilters() {
-  if ($('fPanel').childElementCount) return;
-  const icon = { Feeling: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM9 10h.01M15 10h.01M8.5 14.5a4.5 4.5 0 0 0 7 0',
-    Appearance: 'M8 3 3 6l2 4 3-1v11h8V9l3 1 2-4-5-3a4 4 0 0 1-8 0z' };
-  const sec = g => `<section><h6><svg viewBox="0 0 24 24" aria-hidden="true"><path d="${icon[g]}"/></svg>${g}</h6><div class="fgrid">` + gtags.map((t, i) => fgroup(i) === g
-    ? `<button class="tag" data-t="${i}" aria-pressed="false">${esc(t.split('/')[1])}</button>` : '').join('') + '</div></section>';
+  if (!gtags.length || +$('fPanel').dataset.n === gtags.length) return;     // nothing loaded yet, or already built
+  $('fPanel').dataset.n = gtags.length;
+  const chip = (t, i) => `<button class="tag" data-t="${i}" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="${TAG_ICON[t.split('/')[1]] || ''}"/></svg><span>${esc(t.split('/')[1])}</span></button>`;
+  const sec = g => `<section><h6>${g}</h6><div class="fgrid">` + gtags.map((t, i) => fgroup(i) === g ? chip(t, i) : '').join('') + '</div></section>';
   $('fPanel').innerHTML = sec('Feeling') + sec('Appearance') + '<button class="fclear">Clear filters</button>';
 }
 function syncFilters() {
