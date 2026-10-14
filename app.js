@@ -1062,7 +1062,11 @@ async function penOn() {
   font.forEachGlyph(text, 0, 0, 200, { features: { liga: L, rlig: L, clig: L } }, (glyph, x, y, size) => {
     let c = pt(0, 0);
     const add = o => { o.g = gi; segs.push(o); };
+    const same = (px, py) => Math.hypot(px - c.x, py - c.y) < .01;
     for (const k of glyph.getPath(x, y, size).commands) {
+      // Fonts repeat points: a segment that starts and ends on the same spot has no room for a handle, so drop it.
+      if ((k.type === 'L' && same(k.x, k.y)) || (k.type === 'Q' && same(k.x, k.y) && same(k.x1, k.y1))
+        || (k.type === 'C' && same(k.x, k.y) && same(k.x1, k.y1) && same(k.x2, k.y2))) continue;
       if (k.type === 'Z') add({ t: 'Z' });
       else if (k.type === 'Q') {        // TrueType quadratic -> cubic, so every curve has two handles
         add({ t: 'C', c1: pt(c.x + 2 / 3 * (k.x1 - c.x), c.y + 2 / 3 * (k.y1 - c.y)), c2: pt(k.x + 2 / 3 * (k.x1 - k.x), k.y + 2 / 3 * (k.y1 - k.y)), p: pt(k.x, k.y) });
