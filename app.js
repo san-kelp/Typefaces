@@ -38,14 +38,16 @@ function face(s, text) {
   return faces.get(key);
 }
 
-// Google Fonts catalogue (gfonts.v2.json, refreshed with gfonts.py), loaded the first time the tab is used.
+// Google Fonts catalogue (gfonts.v<GFONTS_V>.json, refreshed with gfonts.py), loaded the first time the tab is used.
 const WN = {100:'Thin',200:'ExtraLight',300:'Light',400:'Regular',500:'Medium',600:'SemiBold',700:'Bold',800:'ExtraBold',900:'Black'};
 let gfamilies = null;
 let gtags = [];                                     // 'Expressive/Calm', 'Theme/Techno', ...: Google's own tags, in gfonts.v2.json
+const GFONTS_V = 2;                                 // must match SCHEMA in gfonts.py (it also names the file)
 async function ensureGoogle() {
   if (gfamilies) return true;
   try {
-    const data = await (await fetch('gfonts.v2.json')).json();
+    const data = await (await fetch(`gfonts.v${GFONTS_V}.json`)).json();
+    if (data.v !== GFONTS_V) throw new Error('gfonts layout mismatch');     // an old copy next to new code
     gtags = data.tags;
     buildFilters(); syncFilters();                  // the panel may already be open, showing 'Loading filters…'
     gfamilies = data.f.map(([name, vs, tg], i) => ({ name, i, tags: tg, styles: vs.split(',').map(v => {

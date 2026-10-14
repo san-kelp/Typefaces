@@ -17,6 +17,8 @@ jobs:
           python-version: '3.12'
       - name: Download the catalogue and tags
         run: python gfonts.py
+      - name: Check the page still works with the new data
+        run: python test/smoke.py
       - name: Commit if it changed
         run: |
           if git diff --quiet -- gfonts.v2.json; then

@@ -1,0 +1,35 @@
+<!doctype html><meta charset="utf-8"><title>smoke</title>
+<iframe id="app" src="../index.html" style="width:1200px;height:800px;border:0"></iframe>
+<pre id="result">running</pre>
+<script>
+// Drives the real page inside an iframe and writes PASS/FAIL lines into #result for test/smoke.py to read.
+const out = [], ok = (name, cond, extra = '') => out.push((cond ? 'PASS ' : 'FAIL ') + name + (extra ? ' (' + extra + ')' : ''));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const f = document.getElementById('app'), errors = [];
+f.addEventListener('load', async () => {
+  const w = f.contentWindow, d = f.contentDocument;
+  w.addEventListener('error', e => errors.push(e.message));
+  try {
+    d.getElementById('headName').click(); await sleep(1500);
+    d.querySelector('.tabs button[data-src="google"]').click(); await sleep(2500);
+    const count = () => +d.getElementById('dCount').textContent.replace(/[^\d]/g, '');
+    const all = count();
+    ok('Google list loads', all >= 1000, all + ' families');
+    const nTags = w.eval('gtags.length');                 // top-level let isn't a window property, so ask the page
+    ok('tags loaded', nTags >= 30, nTags + ' tags');
+    d.getElementById('fBtn').click(); await sleep(300);
+    const chips = d.querySelectorAll('#fPanel .tag');
+    ok('filter chips built', chips.length >= 30, chips.length + ' chips');
+    const serif = [...chips].find(b => b.textContent.trim() === 'Serif'), sans = [...chips].find(b => b.textContent.trim() === 'Sans Serif');
+    serif.click(); const nSerif = count(); serif.click(); sans.click(); const nSans = count(); sans.click();
+    ok('Serif narrows the list', nSerif > 0 && nSerif < all, nSerif + '');
+    ok('Sans Serif narrows the list', nSans > 0 && nSans < all, nSans + '');
+    ok('Serif and Sans do not overlap', nSerif + nSans <= all);
+    ok('clearing restores the list', count() === all);
+    const q = d.getElementById('dq'); q.value = 'Lora'; q.dispatchEvent(new Event('input', { bubbles: true })); await sleep(200);
+    ok('search narrows the list', count() > 0 && count() < 50, count() + '');
+    ok('no script errors', errors.length === 0, errors.join('; '));
+  } catch (e) { ok('ran to the end', false, String(e)); }
+  document.getElementById('result').textContent = out.join('\n') + '\nDONE';
+});
+</script>
