@@ -165,7 +165,12 @@ body.nolist #selBar,body.nolist #pointer{display:none}
 .fbtn[aria-expanded="true"]{box-shadow:var(--rec)}
 .fbtn.on{background:linear-gradient(var(--accent-lo),var(--accent));color:#fff}
 .fbtn[hidden]{display:none}
-#dq{padding-right:120px}
+#dq{padding-right:92px}                           /* the pill (69px + 7px) plus a little air */
+/* The browser's own clear button was a blue X floating mid-field; this is a quiet one that sits beside the pill. */
+#dq::-webkit-search-cancel-button{-webkit-appearance:none;appearance:none;width:14px;height:14px;margin:0 0 0 8px;cursor:pointer;background:var(--mute);
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M3 3l8 8M11 3l-8 8' stroke='black' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E") center/100% no-repeat;
+  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M3 3l8 8M11 3l-8 8' stroke='black' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E") center/100% no-repeat}
+#dq::-webkit-search-cancel-button:hover{background:var(--fg)}
 .search:has(.fbtn[hidden]) #dq{padding-right:22px}
 .fpanel{position:absolute;left:0;top:100%;margin-top:12px;width:100%;max-height:calc(100vh - 300px);overflow:auto;padding:16px;border-radius:6px;background:var(--obj-bg);box-shadow:var(--obj)}
 .fpanel[hidden]{display:none}
