@@ -28,7 +28,8 @@ Then open <http://localhost:4400>, click the font name above the headline to ope
 |---|---|---|
 | Chrome, Edge, Opera (desktop) | yes | yes (needs `https://` or `localhost`) |
 | Firefox, Safari | yes | tab is hidden: the browser can't list installed fonts |
-| Phones and tablets | opens with a "best on a desktop" notice | not available |
+| Phones | opens with a "best on a desktop" notice you can dismiss | not available |
+| Tablets | yes, with a finger instead of a mouse | not available |
 
 Opening `index.html` straight from disk won't work: the page loads its data with `fetch`, and installed fonts need a secure origin.
 
