@@ -154,10 +154,11 @@ body.nolist #selBar,body.nolist #pointer{display:none}
 .penEd>.penCv{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 
 /* Tag filters (Google's Feeling / Appearance tags) */
-.fbtn{position:absolute;right:8px;top:50%;transform:translateY(-50%);height:30px;padding:0 14px;border-radius:999px;font-size:13px;color:var(--mute);white-space:nowrap;transition:color .2s}
-.fbtn:hover,.fbtn[aria-expanded="true"]{color:var(--fg)}
+.fbtn{position:absolute;right:7px;top:50%;transform:translateY(-50%);height:32px;padding:0 18px;border-radius:999px;font-size:13px;color:var(--fg);white-space:nowrap;background:var(--raised-bg);box-shadow:var(--raised);transition:color .2s,background .2s}
+.fbtn[aria-expanded="true"]{box-shadow:var(--rec)}
+.fbtn.on{background:linear-gradient(var(--accent-lo),var(--accent));color:#fff}
 .fbtn[hidden]{display:none}
-#dq{padding-right:110px}
+#dq{padding-right:120px}
 .search:has(.fbtn[hidden]) #dq{padding-right:22px}
 .fpanel{position:absolute;left:0;top:100%;margin-top:12px;width:100%;max-height:calc(100vh - 300px);overflow:auto;padding:16px;border-radius:6px;background:var(--obj-bg);box-shadow:var(--obj)}
 .fpanel[hidden]{display:none}
@@ -170,4 +171,3 @@ body.nolist #selBar,body.nolist #pointer{display:none}
 .tag[aria-pressed="true"]{background:linear-gradient(var(--accent-lo),var(--accent));color:#fff}
 .fclear{margin-top:16px;width:100%;height:36px;border-radius:6px;font-size:13px;color:var(--mute);background:var(--rec-bg);box-shadow:var(--rec)}
 .fclear:hover{color:var(--fg)}
-.fbtn[hidden]{display:none}
