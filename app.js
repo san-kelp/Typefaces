@@ -74,7 +74,7 @@ function buildFilters() {
 }
 function syncFilters() {
   $('fPanel').querySelectorAll('.tag').forEach(b => b.setAttribute('aria-pressed', fsel.has(+b.dataset.t)));
-  $('fBtn').textContent = fsel.size ? `Filters · ${fsel.size}` : 'Filters';
+  $('fLabel').textContent = fsel.size ? `Filters · ${fsel.size}` : 'Filters';
   $('fBtn').classList.toggle('on', fsel.size > 0);
 }
 $('fBtn').addEventListener('click', () => {

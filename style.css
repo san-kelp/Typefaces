@@ -154,7 +154,7 @@ body.nolist #selBar,body.nolist #pointer{display:none}
 .penEd>.penCv{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 
 /* Tag filters (Google's Feeling / Appearance tags) */
-.fbtn{height:36px;border-radius:999px;font-size:13px;color:var(--mute);background:var(--rec-bg);box-shadow:var(--rec);transition:color .2s}
+.fbtn{display:flex;align-items:center;justify-content:center;gap:8px;height:36px;border-radius:999px;font-size:13px;color:var(--mute);background:var(--rec-bg);box-shadow:var(--rec);transition:color .2s}
 .fbtn:hover,.fbtn[aria-expanded="true"],.fbtn.on{color:var(--fg)}
 .fpanel{position:absolute;left:0;top:100%;margin-top:12px;width:100%;max-height:calc(100vh - 300px);overflow:auto;padding:16px;border-radius:6px;background:var(--obj-bg);box-shadow:var(--obj)}
 .fpanel[hidden]{display:none}
@@ -165,3 +165,5 @@ body.nolist #selBar,body.nolist #pointer{display:none}
 .tag[aria-pressed="true"]{background:linear-gradient(var(--accent-lo),var(--accent));color:#fff}
 .fclear{margin-top:16px;width:100%;height:36px;border-radius:6px;font-size:13px;color:var(--mute);background:var(--rec-bg);box-shadow:var(--rec)}
 .fclear:hover{color:var(--fg)}
+.fbtn svg{width:16px;height:16px;fill:var(--rec-bg);stroke:currentColor;stroke-width:1.6;stroke-linecap:round}
+.fbtn[hidden]{display:none}
