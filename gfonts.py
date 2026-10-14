@@ -23,5 +23,10 @@ for fam, _, tag, score in rows:
         by.setdefault(fam, []).append(ix[tag])
 
 out = {'tags': [t.lstrip('/') for t in tags], 'f': [[n, v, sorted(by.get(n, []))] for n, v in fams]}
+
+# A scheduled run must never replace a good file with a broken one: refuse anything that looks truncated.
+tagged = sum(1 for f in out['f'] if f[2])
+if len(fams) < 1000 or len(tags) < 30 or tagged < 1000:
+    raise SystemExit(f'refusing to write: {len(fams)} families, {len(tags)} tags, {tagged} tagged')
 open('gfonts.json', 'w', encoding='utf8').write(json.dumps(out, separators=(',', ':')))
 print(len(fams), 'families,', len(tags), 'tags,', sum(1 for f in out['f'] if f[2]), 'tagged')

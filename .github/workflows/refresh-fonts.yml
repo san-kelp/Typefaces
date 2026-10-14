@@ -1,0 +1,30 @@
+# Refreshes gfonts.json (Google Fonts families + tags) once a day. If nothing changed, nothing is committed.
+# When the file does change, the commit replaces the old copy and the host (Netlify etc.) redeploys from it.
+name: Refresh Google Fonts list
+on:
+  schedule:
+    - cron: '17 4 * * *'      # every day at 04:17 UTC
+  workflow_dispatch:           # also runnable by hand from the Actions tab
+permissions:
+  contents: write
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download the catalogue and tags
+        run: python gfonts.py
+      - name: Commit if it changed
+        run: |
+          if git diff --quiet -- gfonts.json; then
+            echo "No new fonts today."
+          else
+            git config user.name "fonts-bot"
+            git config user.email "fonts-bot@users.noreply.github.com"
+            git add gfonts.json
+            git commit -m "Refresh Google Fonts list ($(date -u +%F))"
+            git push
+          fi
