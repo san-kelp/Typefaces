@@ -1,4 +1,6 @@
 # Refresh gfonts.v2.json from Google's public catalogue: python gfonts.py
+# Data: the family list is from Google Fonts (fonts.google.com/metadata/fonts); the tag scores are Google Fonts' own,
+# from the google/fonts repository (tags/all/families.csv). Both are credited to Google Fonts in the README and index.html.
 # The file name carries the data layout's version: bump it (and app.js) whenever the layout changes, so a browser
 # or CDN holding an old copy can never be paired with code that expects a new one.
 # Family list: fonts.google.com/metadata/fonts. Tags (the Feeling / Appearance filters on fonts.google.com):
