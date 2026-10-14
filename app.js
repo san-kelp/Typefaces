@@ -627,6 +627,12 @@ wheel.addEventListener('pointerup', e => {
 document.addEventListener('keydown', e => {
   if (!target) return;
   if (e.key === 'Escape') return closeDrawer();
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {       // Ctrl/Cmd+K: jump to the search field
+    e.preventDefault();                                              // (the browser's own Ctrl+K would go to its search bar)
+    $('dq').focus();
+    $('dq').select();
+    return;
+  }
   const typing = e.target === $('dq');
   const d = { ArrowDown: 1, ArrowUp: -1, PageDown: 8, PageUp: -8 }[e.key];
   if (d) { e.preventDefault(); go(goal + d); }
