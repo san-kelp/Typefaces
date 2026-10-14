@@ -132,8 +132,10 @@ button,input{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .tabs button{flex:1;padding:10px 0;border-radius:999px;font-size:13px;color:var(--mute);transition:background .2s,color .2s}
 /* Selected tab: a raised knob sitting in the recessed track */
 .tabs button[aria-pressed="true"]{color:var(--fg);background:var(--raised-bg);box-shadow:var(--raised)}
-.search{position:relative;display:block}
-#dq{width:100%;height:46px;border-radius:999px;padding:0 22px;font-size:13px;cursor:text;background:var(--rec-bg);box-shadow:var(--rec);outline:0}
+/* The search bar is one recessed pill holding a row: the input takes whatever room is left, the Filters pill keeps its own width. */
+.search{display:flex;align-items:center;height:46px;padding-right:7px;border-radius:999px;background:var(--rec-bg);box-shadow:var(--rec)}
+.search:has(.fbtn[hidden]){padding-right:0}
+#dq{flex:1;min-width:0;height:100%;border-radius:999px;padding:0 10px 0 22px;font-size:13px;cursor:text;background:none;outline:0}
 #dMsg{font-size:13px;color:var(--mute);line-height:1.5;padding:0 6px}
 body.nolist #selBar,body.nolist #pointer{display:none}
 #dMsg strong{color:var(--fg)}
@@ -161,11 +163,10 @@ body.nolist #selBar,body.nolist #pointer{display:none}
 .penEd>.penCv{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 
 /* Tag filters (Google's Feeling / Appearance tags) */
-.fbtn{position:absolute;right:7px;top:50%;transform:translateY(-50%);height:32px;padding:0 18px;border-radius:999px;font-size:13px;color:var(--fg);white-space:nowrap;background:var(--raised-bg);box-shadow:var(--raised);transition:color .2s,background .2s}
+.fbtn{flex:none;height:32px;padding:0 18px;border-radius:999px;font-size:13px;color:var(--fg);white-space:nowrap;background:var(--raised-bg);box-shadow:var(--raised);transition:color .2s,background .2s}
 .fbtn[aria-expanded="true"]{box-shadow:var(--rec)}
 .fbtn.on{background:linear-gradient(var(--accent-lo),var(--accent));color:#fff}
 .fbtn[hidden]{display:none}
-#dq{padding-right:92px}                           /* the pill (69px + 7px) plus a little air */
 /* The browser's own clear button was a blue X floating mid-field; this is a quiet one that sits beside the pill. */
 #dq::-webkit-search-cancel-button{-webkit-appearance:none;appearance:none;width:14px;height:14px;margin:0 0 0 8px;cursor:pointer;background:var(--mute);
   -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M3 3l8 8M11 3l-8 8' stroke='black' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E") center/100% no-repeat;
