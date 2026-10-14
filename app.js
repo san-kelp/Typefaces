@@ -528,11 +528,19 @@ function click() {
 }
 
 // Spring toward the goal (Framer used spring, bounce .2, .4s).
-function spin() {
-  // Capped speed keeps long spins smooth; the bounce at the end stays under ~5% of a row.
-  vel = Math.max(-.6, Math.min(.6, vel * .55 + (goal - pos) * .1));
-  pos += vel;
-  if (Math.abs(goal - pos) < .002 && Math.abs(vel) < .002) { pos = goal; raf = 0; draw(); return; }
+let spinT = 0;
+function spin(now) {
+  // A critically damped spring toward the goal: it arrives without a bounce, and because it runs on elapsed time
+  // (in small steps) it feels the same on a 60Hz and a 144Hz screen. W is its stiffness: about 0.15s per row.
+  const W = 52, CAP = 240;                                  // rad/s; rows per second
+  let dt = Math.min(.05, spinT ? (now - spinT) / 1000 : 1 / 60);
+  spinT = now;
+  for (let n = Math.ceil(dt * 120), h = dt / n; n > 0; n--) {
+    vel += (-2 * W * vel - W * W * (pos - goal)) * h;
+    vel = Math.max(-CAP, Math.min(CAP, vel));
+    pos += vel * h;
+  }
+  if (Math.abs(goal - pos) < .002 && Math.abs(vel) < .05) { pos = goal; vel = 0; raf = 0; spinT = 0; draw(); return; }
   draw();
   raf = requestAnimationFrame(spin);
 }
@@ -609,12 +617,17 @@ $('wcard').addEventListener('wheel', e => {
 
 // While the dial is open, scrolling anywhere on the page turns it (the page itself doesn't scroll).
 // The weights card keeps its own scrolling.
-let snapT;
+let snapT, lastNotch = 0, notchRun = 0;
 addEventListener('wheel', e => {
   if (!target || inside(e, '.wcard') || inside(e, '.fpanel')) return;
   e.preventDefault();
   const d = e.deltaY || e.deltaX;
-  if (isNotch(e)) return go(Math.round(goal) + Math.sign(d));
+  if (isNotch(e)) {                                   // a mouse-wheel notch is one font; a quick run of them accelerates
+    const now = performance.now();
+    notchRun = now - lastNotch < 140 ? Math.min(notchRun + 1, 9) : 1;
+    lastNotch = now;
+    return go(Math.round(goal) + Math.sign(d) * (notchRun > 2 ? notchRun - 1 : 1));
+  }
   go(goal + d / ROW, false);
   clearTimeout(snapT);
   snapT = setTimeout(() => go(goal), 110);
