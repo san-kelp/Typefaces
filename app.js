@@ -439,10 +439,31 @@ let G = {};                           // geometry, recomputed on resize
 // Selected row, left to right: pill (ends 12px past the rim) | GAP | long tick (10px) | GAP | ◀ pointer
 const PILL_OUT = 12, GAP = 14, TICK = 10;
 
+// Rows away from the pointer dissolve into grain (a noisy opacity gradient) and blur, so the wide glyphs of
+// neighbouring fonts can't pile up on the selected row. The grain is a mask drawn once per window height:
+// solid near the pointer, then each pixel's opacity is the fade plus random noise, which dies out at both ends.
+let maskH = 0;
+function dialMask(H) {
+  if (H === maskH) return;
+  maskH = H;
+  const W = 192, c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const ctx = c.getContext('2d'), img = ctx.createImageData(W, H), full = ROW * 1.1, end = ROW * 5;
+  for (let y = 0; y < H; y++) {
+    const dy = Math.abs(y + .5 - H / 2), g = Math.min(1, Math.max(0, (end - dy) / (end - full))), amp = 1.3 * (1 - Math.abs(2 * g - 1));
+    for (let x = 0; x < W; x++) img.data[(y * W + x) * 4 + 3] = 255 * Math.min(1, Math.max(0, g + (Math.random() - .5) * amp));
+  }
+  ctx.putImageData(img, 0, 0);
+  const m = `url(${c.toDataURL()})`;
+  Object.assign(wheel.style, { webkitMaskImage: m, maskImage: m, webkitMaskSize: `${W}px ${H}px`, maskSize: `${W}px ${H}px`,
+    webkitMaskRepeat: 'repeat-x', maskRepeat: 'repeat-x', webkitMaskPosition: '0 0', maskPosition: '0 0' });
+}
+
 function layout() {
   const H = innerHeight, rim = Math.min(470, Math.max(260, innerWidth * .34));
   const R = Math.max(560, H * .72), cx = rim - R;
   G = { H, rim, R, cx };
+  dialMask(H);
   Object.assign($('disc').style, { left: cx - R - 70 + 'px', top: H / 2 - R - 70 + 'px', width: 2 * (R + 70) + 'px', height: 2 * (R + 70) + 'px' });
   wheel.style.width = rim + 80 + 'px';
   $('selBar').style.width = rim + PILL_OUT - 48 + 'px';                     // bar starts at 48px
@@ -492,6 +513,8 @@ function draw() {
     const near0 = Math.max(0, 1 - Math.abs(i - pos));        // 1 at the pointer, 0 one row away
     el.style.transform = `translate(${cx + R * Math.cos(a)}px,${H / 2 + R * Math.sin(a)}px) rotate(${a}rad) translate(calc(-100% - ${near0 * 10}px),-50%)`;
     el.style.opacity = Math.max(0, .35 * (1 - Math.abs(a) / span)) + near0 * .65;
+    const blur = Math.round(Math.min(6, Math.max(0, (Math.abs(i - pos) - .7) * 2.2)) * 2) / 2;      // sharp at the pointer, softer the further away
+    if (el._blur !== blur) { el._blur = blur; el.style.filter = blur ? `blur(${blur}px)` : ''; }
     el.classList.toggle('on', i === picked && Math.abs(i - pos) < .5);
   }
   // Tick scale just outside the labels, turning with them: long ticks at fonts, short ones between.
