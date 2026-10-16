@@ -214,3 +214,4 @@ body.nolist #selBar,body.nolist #pointer{display:none}
 
 /* A class that sets `display` (like .chip.icon) must not be able to override the hidden attribute. */
 [hidden]{display:none!important}
+#wlabels{position:absolute;inset:0}   /* holds the font names, so a mask can act on them alone (not the selection pill or ticks) */
