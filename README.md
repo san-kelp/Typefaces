@@ -79,12 +79,13 @@ Outlines come from the fonts' static `.woff` files on [Fontsource](https://fonts
 
 ## Privacy
 
-Nothing you type or any font on your computer is uploaded. Four kinds of request do leave the page:
+Nothing you type or any font on your computer is uploaded. Three kinds of request do leave the page:
 
 - **Wikipedia:** the word in the headline is sent to the Wikipedia API to fetch the article.
 - **Google Fonts:** fonts for the Google tab are loaded from Google's servers, which see the visitor's IP address.
 - **jsDelivr:** only when the outline editor is opened, opentype.js and the font's outline file are fetched from the jsDelivr CDN.
-- **No analytics, no cookies.** The page stores a few settings (last tab, font choices, theme) and a cache of installed-font names in `localStorage`.
+
+There is no analytics and there are no cookies. The page stores a few settings (last tab, font choices, theme) and a cache of installed-font names in `localStorage`.
 
 ## Credits
 

@@ -5,11 +5,12 @@
 # or CDN holding an old copy can never be paired with code that expects a new one.
 # Family list: fonts.google.com/metadata/fonts. Tags (the Feeling / Appearance filters on fonts.google.com):
 # tags/all/families.csv in github.com/google/fonts, a 0-100 score per family and tag; we keep scores of 50 and up.
-import csv, io, json, urllib.request
+import csv, io, json, os, re, urllib.request
 GROUPS = ('Expressive', 'Theme', 'Seasonal', 'Monospace')    # Feeling = Expressive; Appearance = the rest
 MIN = 50
 SCHEMA = 2                    # the data layout's version. Bump it (and GFONTS_V in app.js) when the layout changes.
-OUT = f'gfonts.v{SCHEMA}.json'
+HERE = os.path.dirname(os.path.abspath(__file__))     # everything is read and written next to this script
+OUT = os.path.join(HERE, f'gfonts.v{SCHEMA}.json')
 STYLE = ('Style/Serif', 'Style/Sans Serif', 'Style/Calligraphy')   # derived: from category/stroke and the Script tags
 CALLIGRAPHY = ('/Script/Formal', '/Script/Upright Script')
 
@@ -48,7 +49,7 @@ tagged = sum(1 for f in out['f'] if f[2])
 if len(fams) < 1000 or len(tags) < 30 or tagged < 1000:
     raise SystemExit(f'refusing to write: {len(fams)} families, {len(tags)} tags, {tagged} tagged')
 # The file name, its 'v' field and app.js must agree, or the site would keep showing an old list while this job 'succeeds'.
-if f'const GFONTS_V = {SCHEMA};' not in open('app.js', encoding='utf8').read():
-    raise SystemExit(f'refusing to write {OUT}: app.js does not declare GFONTS_V = {SCHEMA}')
+if not re.search(rf'const\s+GFONTS_V\s*=\s*{SCHEMA}\b', open(os.path.join(HERE, 'app.js'), encoding='utf8').read()):
+    raise SystemExit(f'refusing to write {os.path.basename(OUT)}: app.js does not declare GFONTS_V = {SCHEMA}')
 open(OUT, 'w', encoding='utf8').write(json.dumps(out, separators=(',', ':')))
 print(len(fams), 'families,', len(tags), 'tags,', sum(1 for f in out['f'] if f[2]), 'tagged')

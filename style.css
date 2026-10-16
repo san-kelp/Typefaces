@@ -134,8 +134,7 @@ button,input{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .tabs button[aria-pressed="true"]{color:var(--fg);background:var(--raised-bg);box-shadow:var(--raised)}
 /* The search bar is one recessed pill holding a row: the input takes whatever room is left, the Filters pill keeps its own width. */
 .search{display:flex;align-items:center;height:46px;padding-right:7px;border-radius:999px;background:var(--rec-bg);box-shadow:var(--rec)}
-.search:has(.fbtn[hidden]){padding-right:0}
-#dq{flex:1;min-width:0;height:100%;border-radius:999px;padding:0 10px 0 22px;font-size:13px;cursor:text;background:none;outline:0}
+#dq{flex:1;min-width:0;height:100%;border-radius:999px;padding:0 22px;font-size:13px;cursor:text;background:none;outline:0}
 #dMsg{font-size:13px;color:var(--mute);line-height:1.5;padding:0 6px}
 body.nolist #selBar,body.nolist #pointer{display:none}
 #dMsg strong{color:var(--fg)}
@@ -180,7 +179,6 @@ body.nolist #selBar,body.nolist #pointer{display:none}
 .search:focus-within{box-shadow:var(--rec),0 0 0 2px color-mix(in srgb,var(--accent) 40%,transparent)}
 #dq:-webkit-autofill,#dq:-webkit-autofill:hover,#dq:-webkit-autofill:focus{-webkit-text-fill-color:var(--fg);caret-color:var(--fg);transition:background-color 600000s 0s}
 #dq::selection{background:color-mix(in srgb,var(--accent) 25%,transparent)}
-.search:has(.fbtn[hidden]) #dq{padding-right:22px}
 .fpanel{position:absolute;left:0;top:100%;margin-top:12px;width:100%;max-height:calc(100vh - 300px);display:flex;flex-direction:column;overflow:hidden;border-radius:6px;background:var(--obj-bg);box-shadow:var(--obj)}
 .fpanel[hidden]{display:none}
 .fgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
