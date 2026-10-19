@@ -744,13 +744,50 @@ function penNote(t) {
   document.body.append(n);
   setTimeout(() => n.remove(), 3500);
 }
+function penDownload(svg) {
+  const f = Object.assign(document.createElement('a'), { download: `${head.family}-${(headline.textContent || 'outline').slice(0, 24)}.svg`.replace(/[^\w.-]+/g, '_'),
+    href: URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' })) });
+  f.click();
+  setTimeout(() => URL.revokeObjectURL(f.href), 1000);
+}
+
+// Leaving with edits asks first: they aren't saved anywhere, so Return would throw them away.
+function penLeave() {
+  if (!pen) return;
+  if (!pen.undo.length) return penOff();                // nothing was changed
+  if (pen.confirm) return;
+  const m = pen.confirm = document.createElement('div');
+  m.className = 'penConfirm';
+  m.setAttribute('role', 'alertdialog');
+  m.setAttribute('aria-labelledby', 'penConfirmTitle');
+  m.innerHTML = '<div class="penCard"><h3 id="penConfirmTitle">Leave the editor?</h3>'
+    + '<p>Your edits to the outlines are not saved. Returning will discard them.</p>'
+    + '<div class="penBtns"><button class="keep" data-c="keep">Keep editing</button>'
+    + '<button data-c="save">Save SVG and return</button><button class="warn" data-c="discard">Discard and return</button></div></div>';
+  pen.el.append(m);
+  m.querySelector('.keep').focus();
+  m.addEventListener('click', e => {
+    const c = e.target.closest('[data-c]')?.dataset.c;
+    if (c === 'keep') penStay();
+    else if (c === 'save') { const svg = penSvg(); if (svg) penDownload(svg); penOff(); }
+    else if (c === 'discard') penOff();
+  });
+}
+function penStay() {                                    // close the question and carry on editing
+  pen.confirm?.remove();
+  pen.confirm = null;
+  pen.el.focus?.();
+}
+
 function penOff() {
   if (!pen) return;
   removeEventListener('keydown', pen.keys);
   removeEventListener('keyup', pen.keys);
   removeEventListener('resize', pen.size);
   if (pen.raf) cancelAnimationFrame(pen.raf);
-  pen.el.remove();
+  const el = pen.el;
+  el.classList.add('out');                             // fade out, then remove
+  setTimeout(() => el.remove(), 160);
   pen = null;
 }
 
@@ -1323,6 +1360,7 @@ async function penOn() {
   const arrows = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
   pen.keys = e => {
     if (e.target.closest?.('input,textarea,select,[contenteditable]')) return;
+    if (pen.confirm && e.code === 'Space') return;                              // let the focused button take it
     if (e.code === 'Space') {
       pen.space = e.type === 'keydown';
       if (!e.target.closest?.('button')) e.preventDefault();      // a focused toolbar button still activates on Space
@@ -1331,7 +1369,8 @@ async function penOn() {
     if (e.type !== 'keydown') return;
     const mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
     if (pen.hide && k !== 'h' && k !== 'escape' && e.key !== '?') return;     // previewing: nothing edits what you can't see
-    if (k === 'escape') { if (pen.draft) { pen.draft = null; penDraw(); } else if (pen.draw) setDraw(false); else penOff(); }
+    if (pen.confirm) { if (k === 'escape') penStay(); return; }                 // the question is open: only Esc (keep editing)
+    if (k === 'escape') { if (pen.draft) { pen.draft = null; penDraw(); } else if (pen.draw) setDraw(false); else penLeave(); }
     else if (k === 'p' && !mod) setDraw(!pen.draw);
     else if (k === 'h' && !mod) toggle('hide', 'hide');
     else if (e.key === '?') showKeys(!keys.classList.contains('open'));
@@ -1372,7 +1411,7 @@ async function penOn() {
   el.querySelector('svg').addEventListener('pointerdown', tuckOnce);
   el.addEventListener('wheel', tuckOnce, { passive: true });
   const toggle = (key, id) => { pen[key] = !pen[key]; el.querySelector('#' + id).setAttribute('aria-pressed', pen[key]); penDraw(); };
-  el.querySelector('.penDone').addEventListener('click', penOff);
+  el.querySelector('.penDone').addEventListener('click', penLeave);
   // Tooltips: a boxed label above the toolbar, over whichever button is hovered or focused.
   const tip = Object.assign(document.createElement('div'), { className: 'penTip', hidden: true });
   el.append(tip);
@@ -1420,10 +1459,7 @@ async function penOn() {
       const svg = penSvg();
       if (!svg) return penNote('Nothing to export: the drawing is empty.');
       if (a === 'clip') return navigator.clipboard.writeText(svg).then(() => penNote('SVG copied'), () => penNote('Couldn’t copy. Use Download instead.'));
-      const f = Object.assign(document.createElement('a'), { download: `${head.family}-${(headline.textContent || 'outline').slice(0, 24)}.svg`.replace(/[^\w.-]+/g, '_'),
-        href: URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' })) });
-      f.click();
-      setTimeout(() => URL.revokeObjectURL(f.href), 1000);
+      penDownload(svg);
     }
   });
 
@@ -1432,7 +1468,7 @@ async function penOn() {
   const world = q => pt((q.x - pen.tx) / pen.z, (q.y - pen.ty) / pen.z);
   const hit = penHit;
   el.addEventListener('wheel', e => {
-    if (e.target.closest('.penKeys')) return;           // let the shortcuts drawer scroll itself
+    if (e.target.closest('.penKeys') || e.target.closest('.penConfirm')) return;           // let the shortcuts drawer scroll itself
     e.preventDefault();
     const q = at(e), f = Math.max(pen.fit * .2, Math.min(pen.fit * 60, pen.z * Math.exp(-Math.sign(e.deltaY) * Math.min(Math.abs(e.deltaY), 100) * .0015)));
     const w = world(q);                                      // keep the point under the cursor fixed

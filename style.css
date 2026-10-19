@@ -215,3 +215,22 @@ body.nolist #selBar,body.nolist #pointer{display:none}
 /* A class that sets `display` (like .chip.icon) must not be able to override the hidden attribute. */
 [hidden]{display:none!important}
 #wlabels{position:absolute;inset:0}   /* holds the font names, so a mask can act on them alone (not the selection pill or ticks) */
+
+/* "Leave the editor?" question */
+.penConfirm{position:absolute;inset:0;z-index:30;display:grid;place-items:center;padding:24px;background:color-mix(in srgb,var(--bg) 60%,transparent);backdrop-filter:blur(3px)}
+.penCard{width:min(380px,100%);padding:24px;border-radius:6px;background:var(--obj-bg);box-shadow:var(--obj)}
+.penCard h3{margin:0 0 8px;font-size:17px}
+.penCard p{margin:0 0 20px;font-size:14px;line-height:1.5;color:var(--mute)}
+.penBtns{display:grid;gap:10px}
+.penBtns button{height:42px;border-radius:999px;font-size:14px;background:var(--rec-bg);box-shadow:var(--rec);color:var(--fg)}
+.penBtns .keep{background:linear-gradient(var(--accent-lo),var(--accent));color:#fff;box-shadow:var(--raised)}
+.penBtns .warn{color:#c0392b}
+.penBtns button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* Micro-transitions: the filter panel and the editor fade (and the panel drifts 4px) instead of snapping */
+.fpanel{transition:opacity .16s ease,transform .16s ease,visibility 0s}
+.fpanel[hidden]{display:flex!important;opacity:0;visibility:hidden;pointer-events:none;transform:translateY(-4px);transition:opacity .12s ease,transform .12s ease,visibility 0s .12s}
+@keyframes penIn{from{opacity:0}}
+.penEd{animation:penIn .18s ease}
+.penEd.out{opacity:0;pointer-events:none;transition:opacity .14s ease}
+@media (prefers-reduced-motion:reduce){.fpanel,.fpanel[hidden],.penEd,.penEd.out{transition:none;animation:none}}
