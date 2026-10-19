@@ -72,7 +72,7 @@ button,input{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .penKeys p{display:flex;justify-content:space-between;gap:12px;margin-top:8px}
 .penKeys kbd{font:inherit;font-weight:600;white-space:nowrap}
 .penKeys span{color:var(--mute);text-align:right}
-.pill{display:flex;gap:14px;opacity:0;pointer-events:none;transition:opacity .4s}
+.pill{position:relative;z-index:2;display:flex;gap:14px;opacity:0;pointer-events:none;transition:opacity .4s}
 .typed .pill{opacity:.35;pointer-events:auto}
 .typed .stage:hover .pill,.typed .pill:focus-within,.drawer-open .pill{opacity:1}
 .chip{background:var(--rec-bg);box-shadow:var(--rec);height:50px;line-height:50px;padding:0 28px;font-size:17px;white-space:nowrap;max-width:50vw;overflow:hidden;text-overflow:ellipsis}
