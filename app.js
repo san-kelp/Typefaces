@@ -20,6 +20,7 @@ const headline = $('headline'), stage = $('stage'), result = $('result'), body =
 const sheet = document.head.appendChild(document.createElement('style')).sheet;
 // Google styles are fetched from Google's CSS and renamed the same way; `text` loads only those letters (dial labels).
 const faces = new Map();
+const jobs = new Map();                              // face name -> promise: Google CSS fetched, rule inserted, font file loaded
 function face(s, text) {
   const key = text ? s.ps + '|' + text : s.ps;
   if (!faces.has(key)) {
@@ -28,11 +29,11 @@ function face(s, text) {
     if (s.g) {
       const url = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(s.family)}:ital,wght@${+s.it},${s.w}&display=swap`
         + (text ? '&text=' + encodeURIComponent(text) : '');
-      fetch(url).then(r => r.text()).then(css => {
+      jobs.set(name, fetch(url).then(r => r.text()).then(css => {
         for (const rule of css.match(/@font-face\s*{[^}]*}/g) || [])
           sheet.insertRule(rule.replace(/font-family:[^;]+;/, `font-family:"${name}";`).replace(/font-(weight|style):[^;]+;/g, ''));
-        if (text) document.fonts.load(`1em "${name}"`, text).catch(() => {});      // fetch the font file now, not when the label first paints
-      }).catch(() => {});
+        return document.fonts.load(`1em "${name}"`, text || 'Hello');            // fetch the font file now, not when it first paints
+      }).catch(() => {}));
     } else {
       const q = v => v.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
       sheet.insertRule(`@font-face{font-family:"${name}";src:local("${q(s.ps)}"),local("${q(s.full)}")}`);
@@ -1651,6 +1652,24 @@ if (head) applyHead(head);
 if (para) applyPara(para);
 layout();
 fit();
+
+// Boot screen: hide the page behind a progress bar until the catalogue, the chosen fonts and the first screenful of the
+// dial (about 30 label fonts around the current font) are in, so the first spin doesn't pop. Gives up after 8 s.
+(async () => {
+  const boot = $('boot'), bar = $('bootBar');
+  const reveal = () => { boot.classList.add('gone'); setTimeout(() => boot.remove(), 400); };
+  if (src !== 'google') return reveal();
+  try {
+    if (!(await ensureGoogle())) return reveal();
+    const at = Math.max(0, gfamilies.findIndex(f => head?.g && f.name === head.family));
+    for (const f of gfamilies.slice(Math.max(0, at - 15), at + 16)) face(near(f.styles, 400), f.name);
+    const all = [...jobs.values()];
+    let n = 0;
+    all.forEach(j => j.then(() => { bar.style.width = ++n / all.length * 100 + '%'; }));
+    await Promise.race([Promise.all(all), new Promise(r => setTimeout(r, 8000))]);
+  } catch {}
+  reveal();
+})();
 
 /* ---------- Phone notice ----------
    Phones can't read installed fonts and the dial and editor want a mouse. Tell people once per visit, offer to send the
