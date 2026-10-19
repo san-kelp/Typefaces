@@ -167,6 +167,7 @@ async function ensureFonts() {
   if (families) return true;
   if (!('queryLocalFonts' in window)) return msg('This browser can’t read installed fonts. Open the page in Chrome or Edge.');
   let fonts = [];
+  progress('Finding installed fonts…');
   try { fonts = await queryLocalFonts(); } catch {}
   // A denied permission can come back as an empty list rather than an error.
   if (!fonts.length) return msg('Font access is blocked. Click the icon left of the address bar, allow “Fonts”, then reload.');
@@ -174,8 +175,8 @@ async function ensureFonts() {
   // Typographic names, cached per font so files are only read once.
   const cache = store.get('typo', {});
   const todo = fonts.filter(f => !(f.postscriptName in cache) && !SYSTEM.has(f.family) && !SYSTEM.has(f.fullName));
-  if (todo.length) msg(`Reading ${todo.length} font files…`);
   for (let i = 0; i < todo.length; i += 24) {
+    progress(`Reading font files… ${i} of ${todo.length}`, i / todo.length);
     await Promise.all(todo.slice(i, i + 24).map(async f => {
       try { cache[f.postscriptName] = await typoName(f); } catch { cache[f.postscriptName] = null; }
     }));
@@ -201,6 +202,11 @@ async function ensureFonts() {
   families.forEach((f, i) => f.i = i);
   $('dMsg').hidden = true;
   return true;
+}
+// A message in the dial with a progress bar under it (frac: 0 to 1; left out = just the bar's track).
+function progress(t, frac = 0) {
+  $('dMsg').innerHTML = `${esc(t)}<span class="dbar"><i style="width:${Math.round(frac * 100)}%"></i></span>`;
+  $('dMsg').hidden = false;
 }
 function msg(t) { $('dMsg').textContent = t; $('dMsg').hidden = false; return false; }
 

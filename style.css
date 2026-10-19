@@ -241,3 +241,7 @@ body.nolist #selBar,body.nolist #pointer{display:none}
 #boot span{width:160px;height:3px;border-radius:2px;background:var(--rec-bg);box-shadow:var(--rec);overflow:hidden}
 #boot i{display:block;height:100%;width:6%;background:var(--accent);transition:width .2s ease}
 @media (prefers-reduced-motion:reduce){#boot,#boot i{transition:none}}
+
+/* Progress while installed fonts are read */
+#dMsg .dbar{display:block;margin-top:10px;height:3px;border-radius:2px;background:var(--rec-bg);box-shadow:var(--rec);overflow:hidden}
+#dMsg .dbar i{display:block;height:100%;background:var(--accent);transition:width .2s ease}
