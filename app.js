@@ -49,10 +49,7 @@ async function ensureGoogle() {
   if (gfamilies) return true;
   try {
     const data = await (await fetch(`gfonts.v${GFONTS_V}.json`)).json();
-    if (data.v !== GFONTS_V) {                      // an old copy next to new code
-      $('fBtn').hidden = true;
-      return msg('The Google Fonts list in your browser is out of date. Reload the page (Ctrl+Shift+R).');
-    }
+    if (data.v !== GFONTS_V) throw new Error('gfonts layout mismatch');     // an old copy next to new code
     gtags = data.tags;
     buildFilters(); syncFilters();                  // the panel may already be open, showing 'Loading filters…'
     gfamilies = data.f.map(([name, vs, tg], i) => ({ name, i, tags: tg, styles: vs.split(',').map(v => {
@@ -444,11 +441,12 @@ const PILL_OUT = 12, GAP = 14, TICK = 10;
 
 // Long names run off to the left over the disc. Their left end dissolves into grain (a noisy opacity gradient), so they
 // trail off instead of stopping dead. Only horizontal, and only the names: the pill, ticks and pointer stay crisp.
-let maskDone = false;
-function labelMask() {
-  if (maskDone) return;                                 // a fixed tile: it never depends on the window, so it is built once
-  maskDone = true;
-  const W = 192, T = 128, x0 = 36, x1 = 170, c = document.createElement('canvas');
+let maskW = 0;
+function labelMask(width) {
+  const W = Math.ceil(width);                           // whole pixels: the width follows the window and is often fractional
+  if (W === maskW) return;
+  maskW = W;
+  const T = 128, x0 = 36, x1 = 170, c = document.createElement('canvas');
   c.width = W; c.height = T;
   const ctx = c.getContext('2d'), img = ctx.createImageData(W, T);
   for (let x = 0; x < W; x++) {
@@ -456,12 +454,9 @@ function labelMask() {
     for (let y = 0; y < T; y++) img.data[(y * W + x) * 4 + 3] = 255 * Math.min(1, Math.max(0, g + (Math.random() - .5) * amp));
   }
   ctx.putImageData(img, 0, 0);
-  const solid = 'linear-gradient(#000,#000)';
-  const m = `url(${c.toDataURL()}) 0 0/${W}px ${T}px repeat-y,`        // the grain, down the left edge
-    + `${solid} ${W}px 0/calc(100% - ${W}px) 100% no-repeat,`          // everything to its right, untouched
-    + `${solid} 0 50%/100% ${ROW + 14}px no-repeat`;                   // and the selected row's band, so its whole name stays readable
-  $('wlabels').style.webkitMask = m;
-  $('wlabels').style.mask = m;
+  const m = `url(${c.toDataURL()})`, l = $('wlabels').style;
+  Object.assign(l, { webkitMaskImage: m, maskImage: m, webkitMaskSize: `${W}px ${T}px`, maskSize: `${W}px ${T}px`,
+    webkitMaskRepeat: 'repeat-y', maskRepeat: 'repeat-y', webkitMaskPosition: '0 0', maskPosition: '0 0' });
 }
 
 function layout() {
@@ -470,7 +465,7 @@ function layout() {
   G = { H, rim, R, cx };
   Object.assign($('disc').style, { left: cx - R - 70 + 'px', top: H / 2 - R - 70 + 'px', width: 2 * (R + 70) + 'px', height: 2 * (R + 70) + 'px' });
   wheel.style.width = rim + 80 + 'px';
-  labelMask();
+  labelMask(rim + 80);
   $('selBar').style.width = rim + PILL_OUT - 48 + 'px';                     // bar starts at 48px
   $('pointer').style.left = rim + PILL_OUT + GAP + TICK + GAP + 'px';
   nodes.forEach(el => el.style.maxWidth = rim - 60 + 'px');
@@ -657,16 +652,15 @@ $('wcard').addEventListener('wheel', e => {
 
 // While the dial is open, scrolling anywhere on the page turns it (the page itself doesn't scroll).
 // The weights card keeps its own scrolling.
-let snapT, lastNotch = 0, lastDir = 0, notchRun = 0;
+let snapT, lastNotch = 0, notchRun = 0;
 addEventListener('wheel', e => {
   if (!target || inside(e, '.wcard') || inside(e, '.fpanel')) return;
   e.preventDefault();
   const d = e.deltaY || e.deltaX;
   if (isNotch(e)) {                                   // a mouse-wheel notch is one font; a quick run of them accelerates
     const now = performance.now();
-    const dir = Math.sign(d);
-    notchRun = now - lastNotch < 140 && dir === lastDir ? Math.min(notchRun + 1, 9) : 1;     // reversing starts a new run
-    lastNotch = now; lastDir = dir;
+    notchRun = now - lastNotch < 140 ? Math.min(notchRun + 1, 9) : 1;
+    lastNotch = now;
     return go(Math.round(goal) + Math.sign(d) * (notchRun > 2 ? notchRun - 1 : 1));
   }
   go(goal + d / ROW, false);
@@ -1612,9 +1606,7 @@ fit();
 /* ---------- Phone notice ----------
    Phones can't read installed fonts and the dial and editor want a mouse. Tell people once per visit, offer to send the
    link to themselves (the share sheet, or a copy), and let them carry on if they like. */
-let deskSkipped = false;
-try { deskSkipped = !!sessionStorage.getItem('tl.deskSkip'); } catch {}            // storage can be blocked
-if (matchMedia('(pointer: coarse) and (max-width: 700px)').matches && !deskSkipped) {
+if (matchMedia('(pointer: coarse) and (max-width: 700px)').matches && !sessionStorage.getItem('tl.deskSkip')) {
   const note = $('deskNote');
   note.hidden = false;
   $('deskSkip').addEventListener('click', () => { note.hidden = true; try { sessionStorage.setItem('tl.deskSkip', '1'); } catch {} });
