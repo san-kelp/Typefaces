@@ -1668,6 +1668,13 @@ if (para) applyPara(para);
 layout();
 fit();
 
+// First visit, nothing saved: open on Inter for both the headline (Bold) and the paragraphs (Regular, with Bold headings).
+// Registered before the boot screen's own wait, so the catalogue promise runs this first.
+if (!head && !para && src === 'google') ensureGoogle().then(ok => {
+  const inter = ok && gfamilies.find(f => f.name === 'Inter');
+  if (inter && !head && !para) { applyHead(near(inter.styles, 700)); applyPara(inter); }
+});
+
 // Boot screen: hide the page behind a progress bar until the catalogue, the chosen fonts and the dial's label fonts for
 // the 240 rows around the current font are in (nearest first, 12 at a time), so spinning shows real previews, not
 // fallback text. It waits for all of them; within a day of a full load (the browser
@@ -1685,6 +1692,7 @@ const BOOT_ROWS = 240;
   else rest.forEach(e => { e.inert = true; });                     // nothing to tab to or type into while it covers the page
   try {
     if (!(await ensureGoogle())) return reveal();
+    await Promise.all([...jobs.values()]);                         // the headline and paragraph fonts themselves
     const at = Math.max(0, gfamilies.findIndex(f => head?.g && f.name === head.family));
     const rows = gfamilies.map((f, i) => i).sort((x, y) => Math.abs(x - at) - Math.abs(y - at)).slice(0, BOOT_ROWS);
     let n = 0, next = 0;
