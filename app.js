@@ -1670,7 +1670,7 @@ fit();
 
 // Boot screen: hide the page behind a progress bar until the catalogue, the chosen fonts and the dial's label fonts for
 // the 240 rows around the current font are in (nearest first, 12 at a time), so spinning shows real previews, not
-// fallback text. A click or Esc skips it; it gives up by itself after 30 s; within a day of a full load (the browser
+// fallback text. It gives up by itself after 30 s; within a day of a full load (the browser
 // still has those fonts cached) it doesn't show at all. style.css also fades it out at 35 s should this script die.
 const BOOT_ROWS = 240, BOOT_MS = 30000;
 (async () => {
@@ -1678,12 +1678,8 @@ const BOOT_ROWS = 240, BOOT_MS = 30000;
   const reveal = () => {
     if (!boot.isConnected) return;
     rest.forEach(e => { e.inert = false; });
-    removeEventListener('keydown', skip);
     boot.classList.add('gone'); setTimeout(() => boot.remove(), 400);
   };
-  const skip = e => { if (e.type === 'click' || e.key === 'Escape') reveal(); };
-  boot.addEventListener('click', skip);
-  addEventListener('keydown', skip);
   if (src !== 'google') return reveal();
   if (Date.now() - store.get('booted', 0) < 864e5) reveal();       // warm cache: carry on loading behind the page
   else rest.forEach(e => { e.inert = true; });                     // nothing to tab to or type into while it covers the page
