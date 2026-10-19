@@ -97,6 +97,10 @@ function syncFilters() {
   const clr = $('fPanel').querySelector('.fclear');
   if (clr) clr.disabled = !fsel.size;
 }
+function closeFilters() {
+  $('fPanel').hidden = true;
+  $('fBtn').setAttribute('aria-expanded', false);
+}
 $('fBtn').addEventListener('click', () => {
   buildFilters();
   const open = $('fPanel').hidden;
@@ -580,6 +584,7 @@ function spin(now) {
   raf = requestAnimationFrame(spin);
 }
 function go(to, snap = true) {
+  if (!$('fPanel').hidden) closeFilters();           // turning the dial puts the filter panel away
   goal = Math.max(0, Math.min(list.length - 1, to));
   if (snap) { goal = Math.round(goal); pick(); }
   if (!raf) raf = requestAnimationFrame(spin);
