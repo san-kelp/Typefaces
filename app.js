@@ -45,11 +45,14 @@ function face(s, text) {
 // Google Fonts catalogue (gfonts.v<GFONTS_V>.json, refreshed with gfonts.py), loaded the first time the tab is used.
 const WN = {100:'Thin',200:'ExtraLight',300:'Light',400:'Regular',500:'Medium',600:'SemiBold',700:'Bold',800:'ExtraBold',900:'Black'};
 let gfamilies = null;
-const AHEAD = 8;                                    // rows warmed beyond the visible slice of the dial
 let gtags = [];                                     // 'Expressive/Calm', 'Theme/Techno', ...: Google's own tags, in gfonts.v2.json
 const GFONTS_V = 2;                                 // must match SCHEMA in gfonts.py (it also names the file)
-async function ensureGoogle() {
-  if (gfamilies) return true;
+let gload = null;                                   // the load in flight, so two callers share one fetch
+function ensureGoogle() {
+  if (gfamilies) return Promise.resolve(true);
+  return gload ||= loadGoogle().then(ok => { if (!ok) gload = null; return ok; });     // a failure can be retried
+}
+async function loadGoogle() {
   try {
     const data = await (await fetch(`gfonts.v${GFONTS_V}.json`)).json();
     if (data.v !== GFONTS_V) throw new Error('gfonts layout mismatch');     // an old copy next to new code
@@ -119,6 +122,15 @@ $('fPanel').addEventListener('click', e => {
   syncFilters();
   buildWheel(false);                                 // filtering only narrows the list; it never changes the font
 });
+
+// Start loading a family's dial-label font (its name's letters); returns the load, or undefined for installed fonts.
+const AHEAD = 8;                                    // rows warmed beyond the visible slice of the dial
+function warm(f) {
+  const s = near(f.styles, 400);
+  if (!s.g) return;
+  face(s, f.name);
+  return jobs.get(faces.get(s.ps + '|' + f.name));
+}
 
 // Style name -> rough weight. Order matters (extra-bold before bold).
 const W = [[/hairline|thin/i,100],[/extra ?light|ultra ?light|ext ?lt|xlight/i,200],[/light/i,300],[/medium/i,500],
@@ -442,6 +454,7 @@ const wheel = $('wheel');
 const ROW = 50;                       // px between neighbouring labels at the rim
 let list = [], pos = 0, goal = 0, vel = 0, raf = 0, picked = -1;
 const nodes = new Map();              // index -> label element currently on screen
+let warmLo = -1, warmHi = -1;         // the slice last warmed; buildWheel resets it when the list changes
 let G = {};                           // geometry, recomputed on resize
 // Selected row, left to right: pill (ends 12px past the rim) | GAP | long tick (10px) | GAP | ◀ pointer
 const PILL_OUT = 12, GAP = 14, TICK = 10;
@@ -485,6 +498,7 @@ function buildWheel(jumpToCurrent) {
   const need = new Set([...fsel].map(fgroup));
   list = all.filter(f => (!q || f.name.toLowerCase().includes(q)) && (src !== 'google' || tagMatch(f, need)));
   body.classList.toggle('nolist', !list.length);
+  warmLo = warmHi = -1;
   $('dCount').textContent = `${list.length.toLocaleString()} famil${list.length === 1 ? 'y' : 'ies'}`;
   nodes.forEach(el => el.remove()); nodes.clear();
   const cur = target === 'head' ? head?.family : para?.name;
@@ -522,11 +536,10 @@ function draw() {
     el.style.opacity = Math.max(0, .35 * (1 - Math.abs(a) / span)) + near0 * .65;
     el.classList.toggle('on', i === picked && Math.abs(i - pos) < .5);
   }
-  // Warm the next few rows each way (their CSS and font files) so a first-time visit doesn't pop in labels as you spin.
-  for (let i = Math.max(0, lo - AHEAD); i < Math.min(list.length, hi + 1 + AHEAD); i++) {
-    if (i >= lo && i <= hi) continue;
-    const s = near(list[i].styles, 400);
-    if (s.g) face(s, list[i].name);
+  // Warm the next few rows each way so a first-time visit doesn't pop in labels as you spin (only when the slice moves).
+  if (lo !== warmLo || hi !== warmHi) {
+    warmLo = lo; warmHi = hi;
+    for (let i = Math.max(0, lo - AHEAD); i < Math.min(list.length, hi + 1 + AHEAD); i++) if (i < lo || i > hi) warm(list[i]);
   }
   // Tick scale just outside the labels, turning with them: long ticks at fonts, short ones between.
   let d = '';
@@ -773,6 +786,7 @@ function penLeave() {
     + '<p>Your edits to the outlines are not saved. Returning will discard them.</p>'
     + '<div class="penBtns"><button class="keep" data-c="keep">Keep editing</button>'
     + '<button data-c="save">Save SVG and return</button><button class="warn" data-c="discard">Discard and return</button></div></div>';
+  for (const c of pen.el.children) c.inert = true;       // nothing behind the question can be tabbed to or activated
   pen.el.append(m);
   m.querySelector('.keep').focus();
   m.addEventListener('click', e => {
@@ -785,7 +799,8 @@ function penLeave() {
 function penStay() {                                    // close the question and carry on editing
   pen.confirm?.remove();
   pen.confirm = null;
-  pen.el.focus?.();
+  for (const c of pen.el.children) c.inert = false;
+  pen.el.querySelector('.penDone')?.focus();
 }
 
 function penOff() {
@@ -1655,12 +1670,23 @@ fit();
 
 // Boot screen: hide the page behind a progress bar until the catalogue, the chosen fonts and the dial's label fonts for
 // the 240 rows around the current font are in (nearest first, 12 at a time), so spinning shows real previews, not
-// fallback text. Gives up after 30 s and shows whatever is ready.
+// fallback text. A click or Esc skips it; it gives up by itself after 30 s; within a day of a full load (the browser
+// still has those fonts cached) it doesn't show at all. style.css also fades it out at 35 s should this script die.
 const BOOT_ROWS = 240, BOOT_MS = 30000;
 (async () => {
-  const boot = $('boot'), bar = $('bootBar');
-  const reveal = () => { boot.classList.add('gone'); setTimeout(() => boot.remove(), 400); };
+  const boot = $('boot'), bar = $('bootBar'), rest = [...body.children].filter(e => e !== boot);
+  const reveal = () => {
+    if (!boot.isConnected) return;
+    rest.forEach(e => { e.inert = false; });
+    removeEventListener('keydown', skip);
+    boot.classList.add('gone'); setTimeout(() => boot.remove(), 400);
+  };
+  const skip = e => { if (e.type === 'click' || e.key === 'Escape') reveal(); };
+  boot.addEventListener('click', skip);
+  addEventListener('keydown', skip);
   if (src !== 'google') return reveal();
+  if (Date.now() - store.get('booted', 0) < 864e5) reveal();       // warm cache: carry on loading behind the page
+  else rest.forEach(e => { e.inert = true; });                     // nothing to tab to or type into while it covers the page
   try {
     if (!(await ensureGoogle())) return reveal();
     const at = Math.max(0, gfamilies.findIndex(f => head?.g && f.name === head.family));
@@ -1669,13 +1695,13 @@ const BOOT_ROWS = 240, BOOT_MS = 30000;
     setTimeout(() => { stop = true; }, BOOT_MS);
     const worker = async () => {
       while (!stop && next < rows.length) {
-        const f = gfamilies[rows[next++]];
-        face(near(f.styles, 400), f.name);
-        await jobs.get(faces.get(near(f.styles, 400).ps + '|' + f.name));
+        await warm(gfamilies[rows[next++]]);
         bar.style.width = ++n / rows.length * 100 + '%';
+        boot.setAttribute('aria-valuenow', Math.round(n / rows.length * 100));
       }
     };
     await Promise.race([Promise.all(Array.from({ length: 12 }, worker)), new Promise(r => setTimeout(r, BOOT_MS))]);
+    if (n === rows.length) store.set('booted', Date.now());
   } catch {}
   reveal();
 })();

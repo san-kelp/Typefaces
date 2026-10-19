@@ -10,6 +10,8 @@ f.addEventListener('load', async () => {
   const w = f.contentWindow, d = f.contentDocument;
   w.addEventListener('error', e => errors.push(e.message));
   try {
+    for (let i = 0; i < 100 && d.getElementById('boot'); i++) await sleep(200);     // the boot screen lifts by itself
+    ok('boot screen lifts', !d.getElementById('boot'));
     d.getElementById('headName').click(); await sleep(1500);
     d.querySelector('.tabs button[data-src="google"]').click(); await sleep(2500);
     const count = () => +d.getElementById('dCount').textContent.replace(/[^\d]/g, '');
@@ -28,6 +30,18 @@ f.addEventListener('load', async () => {
     ok('clearing restores the list', count() === all);
     const q = d.getElementById('dq'); q.value = 'Lora'; q.dispatchEvent(new Event('input', { bubbles: true })); await sleep(200);
     ok('search narrows the list', count() > 0 && count() < 50, count() + '');
+    // the leave-the-editor question appears only when there are edits (a stand-in editor: the real one needs the network)
+    const fake = undo => w.eval(`pen = { undo: ${undo}, keys() {}, size() {}, el: document.body.appendChild(Object.assign(document.createElement('div'), { className: 'penEd', innerHTML: '<button class="penDone"></button>' })) }`);
+    const pen = () => w.eval('!!pen'), ask = () => d.querySelector('.penConfirm');
+    fake('[]'); w.eval('penLeave()'); await sleep(50);
+    ok('no edits: Return closes straight away', !pen() && !ask());
+    await sleep(250); fake('[{}]'); w.eval('penLeave()'); await sleep(50);
+    ok('edits: Return asks first', pen() && !!ask());
+    ok('the toolbar behind the question is inert', [...d.querySelector('.penEd').children].filter(c => c !== ask()).every(c => c.inert));
+    ask().querySelector('[data-c="keep"]').click(); await sleep(50);
+    ok('Keep editing dismisses the question', pen() && !ask());
+    w.eval('penLeave()'); ask().querySelector('[data-c="discard"]').click(); await sleep(50);
+    ok('Discard closes the editor', !pen());
     ok('no script errors', errors.length === 0, errors.join('; '));
   } catch (e) { ok('ran to the end', false, String(e)); }
   document.getElementById('result').textContent = out.join('\n') + '\nDONE';
