@@ -405,6 +405,7 @@ async function loadSource() {
   syncPen();
   if (src !== 'google') { $('fPanel').hidden = true; $('fBtn').setAttribute('aria-expanded', false); }
   if (src === 'mine' && !families) {
+    emptyDial();                                  // don't leave the Google list on screen while installed fonts load or are asked for
     // Nothing to show until the browser has been allowed to read installed fonts, so the dial stays empty and asks.
     const granted = 'queryLocalFonts' in window && await navigator.permissions.query({ name: 'local-fonts' }).then(p => p.state === 'granted', () => false);
     if (!granted) return askFonts();
