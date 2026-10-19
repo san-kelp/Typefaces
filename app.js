@@ -31,6 +31,7 @@ function face(s, text) {
       fetch(url).then(r => r.text()).then(css => {
         for (const rule of css.match(/@font-face\s*{[^}]*}/g) || [])
           sheet.insertRule(rule.replace(/font-family:[^;]+;/, `font-family:"${name}";`).replace(/font-(weight|style):[^;]+;/g, ''));
+        if (text) document.fonts.load(`1em "${name}"`, text).catch(() => {});      // fetch the font file now, not when the label first paints
       }).catch(() => {});
     } else {
       const q = v => v.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
@@ -43,6 +44,7 @@ function face(s, text) {
 // Google Fonts catalogue (gfonts.v<GFONTS_V>.json, refreshed with gfonts.py), loaded the first time the tab is used.
 const WN = {100:'Thin',200:'ExtraLight',300:'Light',400:'Regular',500:'Medium',600:'SemiBold',700:'Bold',800:'ExtraBold',900:'Black'};
 let gfamilies = null;
+const AHEAD = 8;                                    // rows warmed beyond the visible slice of the dial
 let gtags = [];                                     // 'Expressive/Calm', 'Theme/Techno', ...: Google's own tags, in gfonts.v2.json
 const GFONTS_V = 2;                                 // must match SCHEMA in gfonts.py (it also names the file)
 async function ensureGoogle() {
@@ -518,6 +520,12 @@ function draw() {
     el.style.transform = `translate(${cx + R * Math.cos(a)}px,${H / 2 + R * Math.sin(a)}px) rotate(${a}rad) translate(calc(-100% - ${near0 * 10}px),-50%)`;
     el.style.opacity = Math.max(0, .35 * (1 - Math.abs(a) / span)) + near0 * .65;
     el.classList.toggle('on', i === picked && Math.abs(i - pos) < .5);
+  }
+  // Warm the next few rows each way (their CSS and font files) so a first-time visit doesn't pop in labels as you spin.
+  for (let i = Math.max(0, lo - AHEAD); i < Math.min(list.length, hi + 1 + AHEAD); i++) {
+    if (i >= lo && i <= hi) continue;
+    const s = near(list[i].styles, 400);
+    if (s.g) face(s, list[i].name);
   }
   // Tick scale just outside the labels, turning with them: long ticks at fonts, short ones between.
   let d = '';
