@@ -1670,9 +1670,9 @@ fit();
 
 // Boot screen: hide the page behind a progress bar until the catalogue, the chosen fonts and the dial's label fonts for
 // the 240 rows around the current font are in (nearest first, 12 at a time), so spinning shows real previews, not
-// fallback text. It gives up by itself after 30 s; within a day of a full load (the browser
-// still has those fonts cached) it doesn't show at all. style.css also fades it out at 35 s should this script die.
-const BOOT_ROWS = 240, BOOT_MS = 30000;
+// fallback text. It waits for all of them; within a day of a full load (the browser
+// still has those fonts cached) it doesn't show at all.
+const BOOT_ROWS = 240;
 (async () => {
   const boot = $('boot'), bar = $('bootBar'), rest = [...body.children].filter(e => e !== boot);
   const reveal = () => {
@@ -1687,16 +1687,15 @@ const BOOT_ROWS = 240, BOOT_MS = 30000;
     if (!(await ensureGoogle())) return reveal();
     const at = Math.max(0, gfamilies.findIndex(f => head?.g && f.name === head.family));
     const rows = gfamilies.map((f, i) => i).sort((x, y) => Math.abs(x - at) - Math.abs(y - at)).slice(0, BOOT_ROWS);
-    let n = 0, next = 0, stop = false;
-    setTimeout(() => { stop = true; }, BOOT_MS);
+    let n = 0, next = 0;
     const worker = async () => {
-      while (!stop && next < rows.length) {
+      while (next < rows.length) {
         await warm(gfamilies[rows[next++]]);
         bar.style.width = ++n / rows.length * 100 + '%';
         boot.setAttribute('aria-valuenow', Math.round(n / rows.length * 100));
       }
     };
-    await Promise.race([Promise.all(Array.from({ length: 12 }, worker)), new Promise(r => setTimeout(r, BOOT_MS))]);
+    await Promise.all(Array.from({ length: 12 }, worker));
     if (n === rows.length) store.set('booted', Date.now());
   } catch {}
   reveal();
