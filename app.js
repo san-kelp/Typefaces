@@ -1724,7 +1724,7 @@ if (matchMedia('(pointer: coarse) and (max-width: 700px)').matches && !sessionSt
   note.hidden = false;
   $('deskSkip').addEventListener('click', () => { note.hidden = true; try { sessionStorage.setItem('tl.deskSkip', '1'); } catch {} });
   $('deskShare').addEventListener('click', async () => {
-    const data = { title: 'Type Library', text: 'Open this on a desktop:', url: location.href };
+    const data = { title: 'Typefaces', text: 'Open this on a desktop:', url: location.href };
     try {
       if (navigator.share) await navigator.share(data);
       else { await navigator.clipboard.writeText(location.href); $('deskShare').textContent = 'Link copied'; }

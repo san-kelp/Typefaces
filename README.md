@@ -1,4 +1,4 @@
-# Type Library
+# Typefaces
 
 A type tester for the fonts installed on your computer and the whole Google Fonts catalogue. Type a word, spin the font dial, and see it set large, with the Wikipedia article on that word underneath in a second font. For Google fonts there is also a small outline editor: pull the points and curves of the letters you typed.
 
