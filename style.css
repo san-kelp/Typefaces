@@ -25,7 +25,7 @@ button,input{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 
 /* Stage: keys / headline / keys */
 .stage{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:32px;padding:72px 0 36px}
-.line{position:relative;width:100%;height:30vh;transition:color .3s var(--ease)}
+.line{position:relative;width:100%;height:30vh;margin:6vh 0;transition:color .3s var(--ease)}
 .headline{display:block;height:30vh;line-height:30vh;white-space:nowrap;overflow-x:clip;overflow-y:visible;text-align:center;outline:0;padding:0 4vw;font-family:system-ui,sans-serif;font-weight:700}
 /* A picked style is drawn as-is (no faked bold/italic). No letter-spacing: Chrome turns ligatures off when it's set. */
 .headline,.blk>:first-child{font-synthesis:none;font-variant-ligatures:no-common-ligatures}
