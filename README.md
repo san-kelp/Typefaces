@@ -1,8 +1,14 @@
 # Typefaces
 
-A type tester for the fonts installed on your computer and the whole Google Fonts catalogue. Type a word, spin the font dial, and see it set large, with the Wikipedia article on that word underneath in a second font. For Google fonts there is also a small outline editor: pull the points and curves of the letters you typed.
+**Type a word, spin through Google Fonts and the fonts on your computer on a dial, and read that word's Wikipedia article in the one you land on.**
 
-Everything runs in the browser. There is no build step, no framework and no server of its own.
+<!-- demo: drag the screen recording into the GitHub editor and paste its link here -->
+
+Typefaces is for designers and developers choosing a typeface who want to see real text set in it, not "The quick brown fox", and who find a long list or a grid slow to browse. It's a small personal prototype, written in plain HTML, CSS and JavaScript with no build step and no server of its own.
+
+For Google fonts there is also a small outline editor: pull the points and curves of the letters you typed. It is for playing with letterforms. Edits aren't saved, and the only way to keep them is to export an SVG.
+
+It is deliberately not a font manager, a full vector editor, or a service with accounts.
 
 ## What it does
 
@@ -10,9 +16,10 @@ Everything runs in the browser. There is no build step, no framework and no serv
 - **Filters** (Google tab), using Google's own tags: **Style** (Serif, Sans Serif, Calligraphy), **Feeling** (Calm, Cute, Business, Vintage…) and **Appearance** (Techno, Art Deco, Blackletter, Halloween…). Tags in one group widen the result; groups narrow it.
 - **Search** with <kbd>Ctrl</kbd>+<kbd>K</kbd> (or <kbd>⌘</kbd>+<kbd>K</kbd>) to jump straight to the field while the dial is open.
 - **Weights.** Every weight and italic of the selected family on a small second dial that appears once the dial has settled.
+- **First load.** It opens on Inter, and a progress bar covers the page until the font list and the first screenful of dial previews have loaded, so spinning shows real previews. Returning within a day skips the bar.
 - **Headline and article.** The headline fits itself to the width. Press <kbd>Enter</kbd> (or pause) and the paragraphs fill with the Wikipedia entry for the word, in a second font you choose the same way. Ligatures can be switched on. Light and dark mode.
 - **Outline editor** (Google fonts only, so no installed font is modified). See below.
-- **Your own fonts** are read from the computer, grouped by their real family names, and never uploaded.
+- **Your own fonts** are read from the computer, grouped by their real family names, and never uploaded. A progress bar shows while they are found and read the first time; the names are cached afterwards.
 
 ## Running it
 
@@ -73,13 +80,13 @@ Press the pen key beside `fi` (it appears when the headline font is a Google fon
 | <kbd>H</kbd> | hide points and grid to preview the shape |
 | <kbd>?</kbd> | the shortcuts drawer |
 
-Snap to grid is on by default. **Download SVG** and **Copy SVG** export the edited outlines. Edits are not saved: they live until you close the editor.
+Snap to grid is on by default. **Download SVG** and **Copy SVG** export the edited outlines. Edits are not saved: they live until you close the editor, and **Return** (or <kbd>Esc</kbd>) asks before throwing them away, with the option to save an SVG first.
 
 Outlines come from the fonts' static `.woff` files on [Fontsource](https://fontsource.org/), parsed in the browser with opentype.js. TrueType curves are stored as many small quadratic pieces, so the editor converts them to cubic Béziers and shows the points the font only implies as small dots.
 
 ## Privacy
 
-Nothing you type or any font on your computer is uploaded. Four kinds of request do leave the page:
+Nothing you type or any font on your computer is uploaded. Three kinds of request do leave the page:
 
 - **Wikipedia:** the word in the headline is sent to the Wikipedia API to fetch the article.
 - **Google Fonts:** fonts for the Google tab are loaded from Google's servers, which see the visitor's IP address.
@@ -97,6 +104,14 @@ Nothing you type or any font on your computer is uploaded. Four kinds of request
 - The text cursor takes its curled-bracket shape from the [Phosphor](https://phosphoricons.com/) icon set (MIT).
 - The click sound is synthesised in code (Web Audio), so there is no audio file.
 
-## Licence
+## Tests
 
-Not chosen yet. Add a `LICENSE` file and replace this line before the code is published.
+```bash
+python test/smoke.py
+```
+
+A small headless-Chrome check (needs Chrome, Chromium or Edge): the page loads, the catalogue and filters work, and the leave-the-editor question behaves. The daily refresh job runs it before committing a new font list.
+
+## Licence and author
+
+[MIT](LICENSE), © san-kelp. [LinkedIn](https://www.linkedin.com/in/sankalp-kanchan/).
