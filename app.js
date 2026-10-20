@@ -70,7 +70,8 @@ async function loadGoogle() {
 // Tag filters, as on fonts.google.com: tags in one group widen the result (any of them), groups narrow it (all of them).
 // Style = serif / sans / calligraphy (derived from Google's category, stroke and Script tags); Feeling = its "Expressive" tags;
 // Appearance = Theme + Seasonal + Monospace.
-const fsel = new Set();                              // selected tag indexes
+const fsets = { head: new Set(), para: new Set() };  // each dial keeps its own selection: the headline's filters don't narrow the body font's list
+let fsel = fsets.head;                               // the open dial's selected tag indexes
 const fgroup = t => (gtags[t].startsWith('Style/') ? 'Style' : gtags[t].startsWith('Expressive/') ? 'Feeling' : 'Appearance');
 function tagMatch(f, need) {                         // need: the groups with a selection, from buildWheel
   if (!need.size) return true;
@@ -391,6 +392,7 @@ let target = null;
 async function openDrawer(t) {
   if (target === t) return closeDrawer();
   target = t;
+  if (fsel !== fsets[t]) { fsel = fsets[t]; $('dq').value = ''; syncFilters(); }     // switching dials: that dial's own filters, a clear search
   body.classList.add('drawer-open');
   $('line').classList.toggle('inactive', t === 'para');
   result.classList.toggle('inactive', t === 'head');
