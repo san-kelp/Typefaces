@@ -875,9 +875,8 @@ function penShown(i, f, q) {
   const h = segs[i][f], a = segs[o].p;
   return Math.hypot(sx(pen, h.x) - q.x, sy(pen, h.y) - q.y) < SHOW || Math.hypot(sx(pen, a.x) - q.x, sy(pen, a.y) - q.y) < SHOW;
 }
-// The point a press at screen position q would grab: [key, score] or undefined. The nearest wins. Handles of a
-// selected anchor (or a selected handle) get a small edge: at normal zoom a font's handles sit within a few pixels of
-// their anchor, and after you select an anchor it is its handles you reach for next.
+// The point a press at screen position q would grab: [key, score] or undefined. The nearest wins, with a small
+// bias toward anchors so a handle that merely sits close to an anchor doesn't steal the click.
 function penHit(q) {
   let best = null;
   pen.segs.forEach((s, i) => {
@@ -886,12 +885,8 @@ function penHit(q) {
       const p = f === 'p' ? s.p : s[f], d = Math.hypot(sx(pen, p.x) - q.x, sy(pen, p.y) - q.y);
       if (d <= r && (!best || d + bias < best[1])) best = [i + ':' + f, d + bias];
     };
-    test('p', s.imp ? 6 : 8, 0);
-    if (s.t === 'C') for (const f of ['c1', 'c2']) {
-      if (!penShown(i, f, q)) continue;
-      const o = f === 'c2' ? i : penOwner(i);
-      test(f, 9, pen.sel.has(i + ':' + f) || (o >= 0 && pen.sel.has(o + ':p')) ? -3 : 0);
-    }
+    test('p', s.imp ? 7 : 10, 0);
+    if (s.t === 'C') for (const f of ['c1', 'c2']) if (penShown(i, f, q)) test(f, 9, 3);
   });
   return best || undefined;
 }
