@@ -730,7 +730,8 @@ document.addEventListener('keydown', e => {
   }
   const typing = e.target === $('dq');
   const d = { ArrowDown: 1, ArrowUp: -1, PageDown: 8, PageUp: -8 }[e.key];
-  if (d) { e.preventDefault(); go(goal + d); }
+  if (typing && e.key === 'Enter') { e.preventDefault(); go(Math.round(goal)); }      // Enter in the search: pick the font at the pointer
+  else if (d) { e.preventDefault(); go(goal + d); }
   else if (!typing && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) { e.preventDefault(); setWeight(wIndex + (e.key === 'ArrowRight' ? 1 : -1)); }
 });
 addEventListener('resize', () => { if (target) { layout(); draw(); } });
