@@ -1665,10 +1665,10 @@ if (!head && !para && src === 'google') ensureGoogle().then(ok => {
 });
 
 // Boot screen: hide the page behind a progress bar until the catalogue, the chosen fonts and the dial's label fonts for
-// the 240 rows around the current font are in (nearest first, 12 at a time), so spinning shows real previews, not
+// the 500 rows around the current font are in (nearest first, 12 at a time), so spinning shows real previews, not
 // fallback text. It waits for all of them; within a day of a full load (the browser
 // still has those fonts cached) it doesn't show at all.
-const BOOT_ROWS = 240;
+const BOOT_ROWS = 500;
 (async () => {
   const boot = $('boot'), bar = $('bootBar'), rest = [...body.children].filter(e => e !== boot);
   const reveal = () => {
@@ -1676,6 +1676,7 @@ const BOOT_ROWS = 240;
     rest.forEach(e => { e.inert = false; });
     boot.classList.add('gone'); setTimeout(() => boot.remove(), 400);
   };
+  let order = [];
   if (src !== 'google') return reveal();
   if (Date.now() - store.get('booted', 0) < 864e5) reveal();       // warm cache: carry on loading behind the page
   else rest.forEach(e => { e.inert = true; });                     // nothing to tab to or type into while it covers the page
@@ -1683,7 +1684,8 @@ const BOOT_ROWS = 240;
     if (!(await ensureGoogle())) return reveal();
     await Promise.all([...jobs.values()]);                         // the headline and paragraph fonts themselves
     const at = Math.max(0, gfamilies.findIndex(f => head?.g && f.name === head.family));
-    const rows = gfamilies.map((f, i) => i).sort((x, y) => Math.abs(x - at) - Math.abs(y - at)).slice(0, BOOT_ROWS);
+    order = gfamilies.map((f, i) => i).sort((x, y) => Math.abs(x - at) - Math.abs(y - at));
+    const rows = order.slice(0, BOOT_ROWS);
     let n = 0, next = 0;
     const worker = async () => {
       while (next < rows.length) {
@@ -1696,6 +1698,12 @@ const BOOT_ROWS = 240;
     if (n === rows.length) store.set('booted', Date.now());
   } catch {}
   reveal();
+  // The rest of the catalogue keeps loading behind the page, nearest the start first, six at a time and only when the
+  // browser is idle, so scrolling far finds the labels already in their fonts.
+  let k = BOOT_ROWS;
+  const idle = () => new Promise(r => (window.requestIdleCallback ? requestIdleCallback(r, { timeout: 500 }) : setTimeout(r, 50)));
+  const bg = async () => { while (k < order.length) { await warm(gfamilies[order[k++]]); await idle(); } };
+  Array.from({ length: 6 }, bg);
 })();
 
 /* ---------- Phone notice ----------
