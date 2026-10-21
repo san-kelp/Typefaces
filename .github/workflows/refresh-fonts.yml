@@ -24,8 +24,8 @@ jobs:
           if git diff --quiet -- gfonts.v2.json; then
             echo "No new fonts today."
           else
-            git config user.name "fonts-bot"
-            git config user.email "fonts-bot@users.noreply.github.com"
+            git config user.name "san-kelp"
+            git config user.email "104340875+san-kelp@users.noreply.github.com"
             git add gfonts.v2.json
             git commit -m "Refresh Google Fonts list ($(date -u +%F))"
             git push
