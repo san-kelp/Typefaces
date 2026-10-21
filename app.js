@@ -21,7 +21,25 @@ const sheet = document.head.appendChild(document.createElement('style')).sheet;
 // Google styles are fetched from Google's CSS and renamed the same way; `text` loads only those letters (dial labels).
 const faces = new Map();
 const jobs = new Map();                              // face name -> promise: Google CSS fetched, rule inserted, font file loaded
-function face(s, text) {
+// Adding an @font-face rule makes the browser rebuild its font tables, which costs more the more rules there are (about
+// 12 ms at 1,500). Rules for fonts nobody is looking at yet (the boot screen's and the background loader's) are therefore
+// added in batches, and the slow batches wait for the dial to stop turning.
+let pend = [], flushT = 0;
+function flushRules() {
+  flushT = 0;
+  if (raf && pend.every(p => p.slow)) { flushT = setTimeout(flushRules, 600); return; }      // the dial is turning: not now
+  const batch = pend; pend = [];
+  for (const { rule, done } of batch) { try { sheet.insertRule(rule); } catch {} done(); }
+}
+function addRule(rule, delay) {                         // delay: ms to wait for company; left out = add now
+  if (!delay) return sheet.insertRule(rule);
+  return new Promise(done => {
+    pend.push({ rule, done, slow: delay > 500 });
+    if (pend.length >= 24) { clearTimeout(flushT); flushRules(); }
+    else if (!flushT) flushT = setTimeout(flushRules, delay);
+  });
+}
+function face(s, text, delay) {
   const key = text ? s.ps + '|' + text : s.ps;
   if (!faces.has(key)) {
     const name = 'L' + faces.size;
@@ -29,9 +47,9 @@ function face(s, text) {
     if (s.g) {
       const url = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(s.family)}:ital,wght@${+s.it},${s.w}&display=swap`
         + (text ? '&text=' + encodeURIComponent(text) : '');
-      jobs.set(name, fetch(url).then(r => r.text()).then(css => {
+      jobs.set(name, fetch(url).then(r => r.text()).then(async css => {
         for (const rule of css.match(/@font-face\s*{[^}]*}/g) || [])
-          sheet.insertRule(rule.replace(/font-family:[^;]+;/, `font-family:"${name}";`).replace(/font-(weight|style):[^;]+;/g, ''));
+          await addRule(rule.replace(/font-family:[^;]+;/, `font-family:"${name}";`).replace(/font-(weight|style):[^;]+;/g, ''), delay);
         return document.fonts.load(`1em "${name}"`, text || 'Hello');            // fetch the font file now, not when it first paints
       }).catch(() => {}));
     } else {
@@ -126,10 +144,10 @@ $('fPanel').addEventListener('click', e => {
 
 // Start loading a family's dial-label font (its name's letters); returns the load, or undefined for installed fonts.
 const AHEAD = 8;                                    // rows warmed beyond the visible slice of the dial
-function warm(f) {
+function warm(f, delay) {
   const s = near(f.styles, 400);
   if (!s.g) return;
-  face(s, f.name);
+  face(s, f.name, delay);
   return jobs.get(faces.get(s.ps + '|' + f.name));
 }
 
@@ -1689,21 +1707,21 @@ const BOOT_ROWS = 500;
     let n = 0, next = 0;
     const worker = async () => {
       while (next < rows.length) {
-        await warm(gfamilies[rows[next++]]);
+        await warm(gfamilies[rows[next++]], 250);
         bar.style.width = ++n / rows.length * 100 + '%';
         boot.setAttribute('aria-valuenow', Math.round(n / rows.length * 100));
       }
     };
-    await Promise.all(Array.from({ length: 12 }, worker));
+    await Promise.all(Array.from({ length: 24 }, worker));
     if (n === rows.length) store.set('booted', Date.now());
   } catch {}
   reveal();
-  // The rest of the catalogue keeps loading behind the page, nearest the start first, six at a time and only when the
+  // The rest of the catalogue keeps loading behind the page, nearest the start first, twelve at a time and only when the
   // browser is idle, so scrolling far finds the labels already in their fonts.
   let k = BOOT_ROWS;
   const idle = () => new Promise(r => (window.requestIdleCallback ? requestIdleCallback(r, { timeout: 500 }) : setTimeout(r, 50)));
-  const bg = async () => { while (k < order.length) { await warm(gfamilies[order[k++]]); await idle(); } };
-  Array.from({ length: 6 }, bg);
+  const bg = async () => { while (k < order.length) { await warm(gfamilies[order[k++]], 1500); await idle(); } };
+  Array.from({ length: 12 }, bg);
 })();
 
 /* ---------- Phone notice ----------
