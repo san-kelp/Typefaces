@@ -8,7 +8,7 @@
 import csv, io, json, urllib.request
 GROUPS = ('Expressive', 'Theme', 'Seasonal', 'Monospace')    # Feeling = Expressive; Appearance = the rest
 MIN = 50
-SCHEMA = 2                    # the data layout's version. Bump it (and GFONTS_V in app.js) when the layout changes.
+SCHEMA = 2                    # the data layout's version, in the file name. Bump it (and the name in app.js) when the layout changes.
 OUT = f'gfonts.v{SCHEMA}.json'
 STYLE = ('Style/Serif', 'Style/Sans Serif', 'Style/Calligraphy')   # derived: from category/stroke and the Script tags
 CALLIGRAPHY = ('/Script/Formal', '/Script/Upright Script')
@@ -41,14 +41,11 @@ for fam, (category, stroke) in meta.items():
     if fam in calligraphy:
         by.setdefault(fam, []).append(ix['/Style/Calligraphy'])
 
-out = {'v': SCHEMA, 'tags': [t.lstrip('/') for t in tags], 'f': [[n, v, sorted(by.get(n, []))] for n, v in fams]}
+out = {'tags': [t.lstrip('/') for t in tags], 'f': [[n, v, sorted(by.get(n, []))] for n, v in fams]}
 
 # A scheduled run must never replace a good file with a broken one: refuse anything that looks truncated.
 tagged = sum(1 for f in out['f'] if f[2])
 if len(fams) < 1000 or len(tags) < 30 or tagged < 1000:
     raise SystemExit(f'refusing to write: {len(fams)} families, {len(tags)} tags, {tagged} tagged')
-# The file name, its 'v' field and app.js must agree, or the site would keep showing an old list while this job 'succeeds'.
-if f'const GFONTS_V = {SCHEMA};' not in open('app.js', encoding='utf8').read():
-    raise SystemExit(f'refusing to write {OUT}: app.js does not declare GFONTS_V = {SCHEMA}')
 open(OUT, 'w', encoding='utf8').write(json.dumps(out, separators=(',', ':')))
 print(len(fams), 'families,', len(tags), 'tags,', sum(1 for f in out['f'] if f[2]), 'tagged')

@@ -20,7 +20,6 @@ const headline = $('headline'), stage = $('stage'), result = $('result'), body =
 const sheet = document.head.appendChild(document.createElement('style')).sheet;
 // Google styles are fetched from Google's CSS and renamed the same way; `text` loads only those letters (dial labels).
 const faces = new Map();
-const jobs = new Map();                              // face name -> promise: Google CSS fetched, rule inserted, font file loaded
 function face(s, text) {
   const key = text ? s.ps + '|' + text : s.ps;
   if (!faces.has(key)) {
@@ -29,11 +28,11 @@ function face(s, text) {
     if (s.g) {
       const url = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(s.family)}:ital,wght@${+s.it},${s.w}&display=swap`
         + (text ? '&text=' + encodeURIComponent(text) : '');
-      jobs.set(name, fetch(url).then(r => r.text()).then(css => {
+      fetch(url).then(r => r.text()).then(css => {
         for (const rule of css.match(/@font-face\s*{[^}]*}/g) || [])
           sheet.insertRule(rule.replace(/font-family:[^;]+;/, `font-family:"${name}";`).replace(/font-(weight|style):[^;]+;/g, ''));
         return document.fonts.load(`1em "${name}"`, text || 'Hello');            // fetch the font file now, not when it first paints
-      }).catch(() => {}));
+      }).catch(() => {});
     } else {
       const q = v => v.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
       sheet.insertRule(`@font-face{font-family:"${name}";src:local("${q(s.ps)}"),local("${q(s.full)}")}`);
@@ -42,11 +41,10 @@ function face(s, text) {
   return faces.get(key);
 }
 
-// Google Fonts catalogue (gfonts.v<GFONTS_V>.json, refreshed with gfonts.py), loaded the first time the tab is used.
+// Google Fonts catalogue (gfonts.v2.json, refreshed with gfonts.py), loaded the first time the tab is used.
 const WN = {100:'Thin',200:'ExtraLight',300:'Light',400:'Regular',500:'Medium',600:'SemiBold',700:'Bold',800:'ExtraBold',900:'Black'};
 let gfamilies = null;
 let gtags = [];                                     // 'Expressive/Calm', 'Theme/Techno', ...: Google's own tags, in gfonts.v2.json
-const GFONTS_V = 2;                                 // must match SCHEMA in gfonts.py (it also names the file)
 let gload = null;                                   // the load in flight, so two callers share one fetch
 function ensureGoogle() {
   if (gfamilies) return Promise.resolve(true);
@@ -54,8 +52,7 @@ function ensureGoogle() {
 }
 async function loadGoogle() {
   try {
-    const data = await (await fetch(`gfonts.v${GFONTS_V}.json`)).json();
-    if (data.v !== GFONTS_V) throw new Error('gfonts layout mismatch');     // an old copy next to new code
+    const data = await (await fetch('gfonts.v2.json')).json();      // the name carries the layout's version: change it here and in gfonts.py together
     gtags = data.tags;
     buildFilters(); syncFilters();                  // the panel may already be open, showing 'Loading filters…'
     gfamilies = data.f.map(([name, vs, tg], i) => ({ name, i, tags: tg, styles: vs.split(',').map(v => {
@@ -128,9 +125,7 @@ $('fPanel').addEventListener('click', e => {
 const AHEAD = 8;                                    // rows warmed beyond the visible slice of the dial
 function warm(f) {
   const s = near(f.styles, 400);
-  if (!s.g) return;
-  face(s, f.name);
-  return jobs.get(faces.get(s.ps + '|' + f.name));
+  if (s.g) face(s, f.name);
 }
 
 // Style name -> rough weight. Order matters (extra-bold before bold).
@@ -1658,45 +1653,10 @@ layout();
 fit();
 
 // First visit, nothing saved: open on Inter for both the headline (Bold) and the paragraphs (Regular, with Bold headings).
-// Registered before the boot screen's own wait, so the catalogue promise runs this first.
 if (!head && !para && src === 'google') ensureGoogle().then(ok => {
   const inter = ok && gfamilies.find(f => f.name === 'Inter');
   if (inter && !head && !para) { applyHead(near(inter.styles, 700)); applyPara(inter); }
 });
-
-// Boot screen: hide the page behind a progress bar until the catalogue, the chosen fonts and the dial's label fonts for
-// the 500 rows around the current font are in (nearest first, 12 at a time), so spinning shows real previews, not
-// fallback text. It waits for all of them; within a day of a full load (the browser
-// still has those fonts cached) it doesn't show at all.
-const BOOT_ROWS = 500;
-(async () => {
-  const boot = $('boot'), bar = $('bootBar'), rest = [...body.children].filter(e => e !== boot);
-  const reveal = () => {
-    if (!boot.isConnected) return;
-    rest.forEach(e => { e.inert = false; });
-    boot.classList.add('gone'); setTimeout(() => boot.remove(), 400);
-  };
-  if (src !== 'google') return reveal();
-  if (Date.now() - store.get('booted', 0) < 864e5) reveal();       // warm cache: carry on loading behind the page
-  else rest.forEach(e => { e.inert = true; });                     // nothing to tab to or type into while it covers the page
-  try {
-    if (!(await ensureGoogle())) return reveal();
-    await Promise.all([...jobs.values()]);                         // the headline and paragraph fonts themselves
-    const at = Math.max(0, gfamilies.findIndex(f => head?.g && f.name === head.family));
-    const rows = gfamilies.map((f, i) => i).sort((x, y) => Math.abs(x - at) - Math.abs(y - at)).slice(0, BOOT_ROWS);
-    let n = 0, next = 0;
-    const worker = async () => {
-      while (next < rows.length) {
-        await warm(gfamilies[rows[next++]]);
-        bar.style.width = ++n / rows.length * 100 + '%';
-        boot.setAttribute('aria-valuenow', Math.round(n / rows.length * 100));
-      }
-    };
-    await Promise.all(Array.from({ length: 12 }, worker));
-    if (n === rows.length) store.set('booted', Date.now());
-  } catch {}
-  reveal();
-})();
 
 /* ---------- Phone notice ----------
    Phones can't read installed fonts and the dial and editor want a mouse. Tell people once per visit, offer to send the

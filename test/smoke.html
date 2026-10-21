@@ -10,8 +10,6 @@ f.addEventListener('load', async () => {
   const w = f.contentWindow, d = f.contentDocument;
   w.addEventListener('error', e => errors.push(e.message));
   try {
-    for (let i = 0; i < 100 && d.getElementById('boot'); i++) await sleep(200);     // the boot screen lifts by itself
-    ok('boot screen lifts', !d.getElementById('boot'));
     d.getElementById('headName').click(); await sleep(1500);
     d.querySelector('.tabs button[data-src="google"]').click(); await sleep(2500);
     const count = () => +d.getElementById('dCount').textContent.replace(/[^\d]/g, '');
