@@ -468,33 +468,12 @@ let G = {};                           // geometry, recomputed on resize
 // Selected row, left to right: pill (ends 12px past the rim) | GAP | long tick (10px) | GAP | ◀ pointer
 const PILL_OUT = 12, GAP = 14, TICK = 10;
 
-// Long names run off to the left over the disc. Their left end dissolves into grain (a noisy opacity gradient), so they
-// trail off instead of stopping dead. Only horizontal, and only the names: the pill, ticks and pointer stay crisp.
-let maskW = 0;
-function labelMask(width) {
-  const W = Math.ceil(width);                           // whole pixels: the width follows the window and is often fractional
-  if (W === maskW) return;
-  maskW = W;
-  const T = 128, x0 = 36, x1 = 170, c = document.createElement('canvas');
-  c.width = W; c.height = T;
-  const ctx = c.getContext('2d'), img = ctx.createImageData(W, T);
-  for (let x = 0; x < W; x++) {
-    const g = Math.min(1, Math.max(0, (x - x0) / (x1 - x0))), amp = 1.3 * (1 - Math.abs(2 * g - 1));      // grain peaks mid-fade, none at either end
-    for (let y = 0; y < T; y++) img.data[(y * W + x) * 4 + 3] = 255 * Math.min(1, Math.max(0, g + (Math.random() - .5) * amp));
-  }
-  ctx.putImageData(img, 0, 0);
-  const m = `url(${c.toDataURL()})`, l = $('wlabels').style;
-  Object.assign(l, { webkitMaskImage: m, maskImage: m, webkitMaskSize: `${W}px ${T}px`, maskSize: `${W}px ${T}px`,
-    webkitMaskRepeat: 'repeat-y', maskRepeat: 'repeat-y', webkitMaskPosition: '0 0', maskPosition: '0 0' });
-}
-
 function layout() {
   const H = innerHeight, rim = Math.min(470, Math.max(260, innerWidth * .34));
   const R = Math.max(560, H * .72), cx = rim - R;
   G = { H, rim, R, cx };
   Object.assign($('disc').style, { left: cx - R - 70 + 'px', top: H / 2 - R - 70 + 'px', width: 2 * (R + 70) + 'px', height: 2 * (R + 70) + 'px' });
   wheel.style.width = rim + 80 + 'px';
-  labelMask(rim + 80);
   $('selBar').style.width = rim + PILL_OUT - 48 + 'px';                     // bar starts at 48px
   $('pointer').style.left = rim + PILL_OUT + GAP + TICK + GAP + 'px';
   nodes.forEach(el => el.style.maxWidth = rim - 60 + 'px');
