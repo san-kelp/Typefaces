@@ -246,8 +246,7 @@ body.nolist #selBar,body.nolist #pointer{display:none}
 #dMsg .dbar{display:block;margin-top:10px;height:3px;border-radius:2px;background:var(--rec-bg);box-shadow:var(--rec);overflow:hidden}
 #dMsg .dbar i{display:block;height:100%;background:var(--accent);transition:width .2s ease}
 
-/* Scrollbars: a 4px thumb in the theme's own dim colour, no track and no arrows */
-.fbody::-webkit-scrollbar,.penKeys::-webkit-scrollbar{width:4px}
-.fbody::-webkit-scrollbar-track,.penKeys::-webkit-scrollbar-track{background:none}
-.fbody::-webkit-scrollbar-thumb,.penKeys::-webkit-scrollbar-thumb{background:var(--dim);border-radius:2px}
-@supports not selector(::-webkit-scrollbar){.fbody,.penKeys{scrollbar-width:thin;scrollbar-color:var(--dim) transparent}}
+/* Scrollbars follow the theme: native controls go dark with the page, and the thumb is the theme's dim grey on no track */
+:root{color-scheme:light}
+body.dark{color-scheme:dark}
+.fbody,.penKeys{scrollbar-width:thin;scrollbar-color:var(--dim) transparent}
