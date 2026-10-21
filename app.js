@@ -20,17 +20,32 @@ const headline = $('headline'), stage = $('stage'), result = $('result'), body =
 const sheet = document.head.appendChild(document.createElement('style')).sheet;
 // Google styles are fetched from Google's CSS and renamed the same way; `text` loads only those letters (dial labels).
 const faces = new Map();
+// Dial-label fonts come and go as you scroll. Each one's @font-face text is fetched once and kept in `ruleText`; only the
+// newest LIVE_MAX are in the stylesheet at a time (every rule makes the browser rebuild its font tables, and the cost grows
+// with the count), and a font scrolled back to is put back from the kept text, with no network.
+const ruleText = new Map(), live = new Map(), LIVE_MAX = 150;      // name -> rule strings; name -> rules now in the sheet
+function putRules(name) {
+  live.set(name, ruleText.get(name).map(t => sheet.cssRules[sheet.insertRule(t, sheet.cssRules.length)]));
+  for (const [old, rules] of live) {
+    if (live.size <= LIVE_MAX) break;
+    for (const r of rules) { const i = [...sheet.cssRules].indexOf(r); if (i >= 0) sheet.deleteRule(i); }
+    live.delete(old);
+  }
+}
 function face(s, text) {
   const key = text ? s.ps + '|' + text : s.ps;
-  if (!faces.has(key)) {
+  if (faces.has(key)) {
+    const name = faces.get(key);
+    if (text && s.g && !live.has(name) && ruleText.has(name)) putRules(name);        // scrolled back to an evicted one
+  } else {
     const name = 'L' + faces.size;
     faces.set(key, name); // bare ident: it goes inside style="" attributes
     if (s.g) {
       const url = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(s.family)}:ital,wght@${+s.it},${s.w}&display=swap`
         + (text ? '&text=' + encodeURIComponent(text) : '');
       fetch(url).then(r => r.text()).then(css => {
-        for (const rule of css.match(/@font-face\s*{[^}]*}/g) || [])
-          sheet.insertRule(rule.replace(/font-family:[^;]+;/, `font-family:"${name}";`).replace(/font-(weight|style):[^;]+;/g, ''));
+        const rules = (css.match(/@font-face\s*{[^}]*}/g) || []).map(t => t.replace(/font-family:[^;]+;/, `font-family:"${name}";`).replace(/font-(weight|style):[^;]+;/g, ''));
+        if (text) { ruleText.set(name, rules); putRules(name); } else rules.forEach(t => sheet.insertRule(t));   // headline/body fonts stay
         return document.fonts.load(`1em "${name}"`, text || 'Hello');            // fetch the font file now, not when it first paints
       }).catch(() => {});
     } else {
@@ -1630,8 +1645,10 @@ $('export').addEventListener('click', async () => {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 });
 
-const dark = store.get('dark', matchMedia('(prefers-color-scheme: dark)').matches);
-body.classList.toggle('dark', dark);
+// The theme follows the system, live. The sun/moon key overrides it until the next change of system theme or reload.
+const sysDark = matchMedia('(prefers-color-scheme: dark)');
+body.classList.toggle('dark', sysDark.matches);
+sysDark.addEventListener('change', e => { body.classList.toggle('dark', e.matches); syncTheme(); if (pen) { pen.col = null; penDraw(); } });
 // Moon in light mode (switch to dark), sun in dark mode (switch to light).
 const syncTheme = () => {
   const on = body.classList.contains('dark');
@@ -1640,7 +1657,7 @@ const syncTheme = () => {
 };
 syncTheme();
 $('light').addEventListener('click', () => {
-  store.set('dark', body.classList.toggle('dark'));
+  body.classList.toggle('dark');
   syncTheme();
   if (pen) { pen.col = null; penDraw(); }            // repaint the editor's canvas in the new colours
 });
@@ -1652,10 +1669,13 @@ if (para) applyPara(para);
 layout();
 fit();
 
-// First visit, nothing saved: open on Inter for both the headline (Bold) and the paragraphs (Regular, with Bold headings).
-if (!head && !para && src === 'google') ensureGoogle().then(ok => {
+// Nothing saved for the headline or the paragraphs yet: use Inter (headline Bold, paragraphs Regular with Bold headings).
+// Each is filled in on its own, so someone who only ever picked a headline still gets a body font for the dial to start on.
+if ((!head || !para) && src === 'google') ensureGoogle().then(ok => {
   const inter = ok && gfamilies.find(f => f.name === 'Inter');
-  if (inter && !head && !para) { applyHead(near(inter.styles, 700)); applyPara(inter); }
+  if (!inter) return;
+  if (!head) applyHead(near(inter.styles, 700));
+  if (!para) applyPara(inter);
 });
 
 /* ---------- Phone notice ----------
